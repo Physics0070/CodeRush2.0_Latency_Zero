@@ -14,6 +14,13 @@ services:
     startCommand: uvicorn backend.main:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /health
     envVars:
+      # Unpinned, Render falls back to its own default version, which is not
+      # necessarily the 3.11.9 this was built and tested against - matters
+      # here because turso-serverless is a young Beta package and may not
+      # ship a wheel for whatever Render would otherwise pick. Verified
+      # against Render's own docs: PYTHON_VERSION must be fully qualified.
+      - key: PYTHON_VERSION
+        value: 3.11.9
       - key: APP_ENV
         value: production
       - key: LLM_PROVIDER
