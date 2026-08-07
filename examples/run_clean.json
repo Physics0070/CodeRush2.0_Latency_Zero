@@ -1,0 +1,1175 @@
+{
+  "run": {
+    "run_id": "39cb421a-32f2-4ec0-a7f4-9b656880ac97",
+    "goal": "Audit this repository and produce a prioritized remediation report.",
+    "config_hash": "ed887d3d0aafa2ad8de0bdea2eeddb9436589766acdc3141ccbba8690ed70c15",
+    "seed": 42,
+    "graph_spec": {
+      "edges": [
+        {
+          "to_node": "approve",
+          "from_node": "clarify",
+          "handoff_schema": {}
+        },
+        {
+          "to_node": "fanout",
+          "from_node": "approve",
+          "handoff_schema": {}
+        },
+        {
+          "to_node": "security",
+          "from_node": "fanout",
+          "handoff_schema": {
+            "type": "object",
+            "required": [
+              "findings"
+            ],
+            "properties": {
+              "findings": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "title",
+                    "severity",
+                    "recommendation"
+                  ],
+                  "properties": {
+                    "title": {
+                      "type": "string",
+                      "minLength": 3
+                    },
+                    "severity": {
+                      "enum": [
+                        "low",
+                        "medium",
+                        "high",
+                        "critical"
+                      ]
+                    },
+                    "recommendation": {
+                      "type": "string",
+                      "minLength": 3
+                    }
+                  }
+                },
+                "minItems": 1
+              }
+            }
+          }
+        },
+        {
+          "to_node": "quality",
+          "from_node": "fanout",
+          "handoff_schema": {
+            "type": "object",
+            "required": [
+              "findings"
+            ],
+            "properties": {
+              "findings": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "title",
+                    "severity",
+                    "recommendation"
+                  ],
+                  "properties": {
+                    "title": {
+                      "type": "string",
+                      "minLength": 3
+                    },
+                    "severity": {
+                      "enum": [
+                        "low",
+                        "medium",
+                        "high",
+                        "critical"
+                      ]
+                    },
+                    "recommendation": {
+                      "type": "string",
+                      "minLength": 3
+                    }
+                  }
+                },
+                "minItems": 1
+              }
+            }
+          }
+        },
+        {
+          "to_node": "docs",
+          "from_node": "fanout",
+          "handoff_schema": {
+            "type": "object",
+            "required": [
+              "findings"
+            ],
+            "properties": {
+              "findings": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "title",
+                    "severity",
+                    "recommendation"
+                  ],
+                  "properties": {
+                    "title": {
+                      "type": "string",
+                      "minLength": 3
+                    },
+                    "severity": {
+                      "enum": [
+                        "low",
+                        "medium",
+                        "high",
+                        "critical"
+                      ]
+                    },
+                    "recommendation": {
+                      "type": "string",
+                      "minLength": 3
+                    }
+                  }
+                },
+                "minItems": 1
+              }
+            }
+          }
+        },
+        {
+          "to_node": "join",
+          "from_node": "security",
+          "handoff_schema": {
+            "type": "object",
+            "required": [
+              "findings"
+            ],
+            "properties": {
+              "findings": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "title",
+                    "severity",
+                    "recommendation"
+                  ],
+                  "properties": {
+                    "title": {
+                      "type": "string",
+                      "minLength": 3
+                    },
+                    "severity": {
+                      "enum": [
+                        "low",
+                        "medium",
+                        "high",
+                        "critical"
+                      ]
+                    },
+                    "recommendation": {
+                      "type": "string",
+                      "minLength": 3
+                    }
+                  }
+                },
+                "minItems": 1
+              }
+            }
+          }
+        },
+        {
+          "to_node": "join",
+          "from_node": "quality",
+          "handoff_schema": {
+            "type": "object",
+            "required": [
+              "findings"
+            ],
+            "properties": {
+              "findings": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "title",
+                    "severity",
+                    "recommendation"
+                  ],
+                  "properties": {
+                    "title": {
+                      "type": "string",
+                      "minLength": 3
+                    },
+                    "severity": {
+                      "enum": [
+                        "low",
+                        "medium",
+                        "high",
+                        "critical"
+                      ]
+                    },
+                    "recommendation": {
+                      "type": "string",
+                      "minLength": 3
+                    }
+                  }
+                },
+                "minItems": 1
+              }
+            }
+          }
+        },
+        {
+          "to_node": "join",
+          "from_node": "docs",
+          "handoff_schema": {
+            "type": "object",
+            "required": [
+              "findings"
+            ],
+            "properties": {
+              "findings": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "title",
+                    "severity",
+                    "recommendation"
+                  ],
+                  "properties": {
+                    "title": {
+                      "type": "string",
+                      "minLength": 3
+                    },
+                    "severity": {
+                      "enum": [
+                        "low",
+                        "medium",
+                        "high",
+                        "critical"
+                      ]
+                    },
+                    "recommendation": {
+                      "type": "string",
+                      "minLength": 3
+                    }
+                  }
+                },
+                "minItems": 1
+              }
+            }
+          }
+        },
+        {
+          "to_node": "verify",
+          "from_node": "join",
+          "handoff_schema": {
+            "type": "object",
+            "required": [
+              "summary",
+              "prioritized"
+            ],
+            "properties": {
+              "summary": {
+                "type": "string",
+                "minLength": 10
+              },
+              "prioritized": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "rank",
+                    "title",
+                    "severity"
+                  ],
+                  "properties": {
+                    "rank": {
+                      "type": "integer",
+                      "minimum": 1
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "severity": {
+                      "enum": [
+                        "low",
+                        "medium",
+                        "high",
+                        "critical"
+                      ]
+                    }
+                  }
+                },
+                "minItems": 1
+              }
+            }
+          }
+        }
+      ],
+      "nodes": [
+        {
+          "id": "clarify",
+          "type": "clarify",
+          "agent": null,
+          "condition": null,
+          "compensates": null,
+          "max_retries": 1,
+          "chairman_policy": "strongest",
+          "council_members": []
+        },
+        {
+          "id": "approve",
+          "type": "approval",
+          "agent": null,
+          "condition": null,
+          "compensates": null,
+          "max_retries": 1,
+          "chairman_policy": "strongest",
+          "council_members": []
+        },
+        {
+          "id": "fanout",
+          "type": "fanout",
+          "agent": null,
+          "condition": null,
+          "compensates": null,
+          "max_retries": 1,
+          "chairman_policy": "strongest",
+          "council_members": []
+        },
+        {
+          "id": "security",
+          "type": "agent",
+          "agent": {
+            "id": "security",
+            "role": "Find security weaknesses.",
+            "model": "ollama:llama3.2:3b",
+            "tools": [
+              "read_file"
+            ],
+            "timeout_s": 180,
+            "input_schema": {},
+            "memory_scope": "shared_ro",
+            "budget_tokens": 4000,
+            "output_schema": {
+              "type": "object",
+              "required": [
+                "findings"
+              ],
+              "properties": {
+                "findings": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": [
+                      "title",
+                      "severity",
+                      "recommendation"
+                    ],
+                    "properties": {
+                      "title": {
+                        "type": "string",
+                        "minLength": 3
+                      },
+                      "severity": {
+                        "enum": [
+                          "low",
+                          "medium",
+                          "high",
+                          "critical"
+                        ]
+                      },
+                      "recommendation": {
+                        "type": "string",
+                        "minLength": 3
+                      }
+                    }
+                  },
+                  "minItems": 1
+                }
+              }
+            },
+            "fallback_model": null,
+            "system_contract": "You are the security specialist. Find security weaknesses.\nReport only what you can support from the material given to you. Output JSON only, matching the required schema. No prose, no markdown fence.",
+            "allowed_side_effects": []
+          },
+          "condition": null,
+          "compensates": null,
+          "max_retries": 1,
+          "chairman_policy": "strongest",
+          "council_members": []
+        },
+        {
+          "id": "quality",
+          "type": "agent",
+          "agent": {
+            "id": "quality",
+            "role": "Find code quality issues.",
+            "model": "ollama:qwen2.5:7b",
+            "tools": [
+              "read_file"
+            ],
+            "timeout_s": 180,
+            "input_schema": {},
+            "memory_scope": "shared_ro",
+            "budget_tokens": 4000,
+            "output_schema": {
+              "type": "object",
+              "required": [
+                "findings"
+              ],
+              "properties": {
+                "findings": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": [
+                      "title",
+                      "severity",
+                      "recommendation"
+                    ],
+                    "properties": {
+                      "title": {
+                        "type": "string",
+                        "minLength": 3
+                      },
+                      "severity": {
+                        "enum": [
+                          "low",
+                          "medium",
+                          "high",
+                          "critical"
+                        ]
+                      },
+                      "recommendation": {
+                        "type": "string",
+                        "minLength": 3
+                      }
+                    }
+                  },
+                  "minItems": 1
+                }
+              }
+            },
+            "fallback_model": null,
+            "system_contract": "You are the quality specialist. Find code quality issues.\nReport only what you can support from the material given to you. Output JSON only, matching the required schema. No prose, no markdown fence.",
+            "allowed_side_effects": []
+          },
+          "condition": null,
+          "compensates": null,
+          "max_retries": 1,
+          "chairman_policy": "strongest",
+          "council_members": []
+        },
+        {
+          "id": "docs",
+          "type": "agent",
+          "agent": {
+            "id": "docs",
+            "role": "Find documentation gaps.",
+            "model": "ollama:llama3.2:3b",
+            "tools": [
+              "read_file"
+            ],
+            "timeout_s": 180,
+            "input_schema": {},
+            "memory_scope": "shared_ro",
+            "budget_tokens": 4000,
+            "output_schema": {
+              "type": "object",
+              "required": [
+                "findings"
+              ],
+              "properties": {
+                "findings": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": [
+                      "title",
+                      "severity",
+                      "recommendation"
+                    ],
+                    "properties": {
+                      "title": {
+                        "type": "string",
+                        "minLength": 3
+                      },
+                      "severity": {
+                        "enum": [
+                          "low",
+                          "medium",
+                          "high",
+                          "critical"
+                        ]
+                      },
+                      "recommendation": {
+                        "type": "string",
+                        "minLength": 3
+                      }
+                    }
+                  },
+                  "minItems": 1
+                }
+              }
+            },
+            "fallback_model": null,
+            "system_contract": "You are the docs specialist. Find documentation gaps.\nReport only what you can support from the material given to you. Output JSON only, matching the required schema. No prose, no markdown fence.",
+            "allowed_side_effects": []
+          },
+          "condition": null,
+          "compensates": null,
+          "max_retries": 1,
+          "chairman_policy": "strongest",
+          "council_members": []
+        },
+        {
+          "id": "join",
+          "type": "join",
+          "agent": null,
+          "condition": null,
+          "compensates": null,
+          "max_retries": 1,
+          "chairman_policy": "strongest",
+          "council_members": []
+        },
+        {
+          "id": "verify",
+          "type": "verify",
+          "agent": {
+            "id": "verifier",
+            "role": "Independent verification of the merged findings",
+            "model": "ollama:qwen2.5:7b",
+            "tools": [],
+            "timeout_s": 180,
+            "input_schema": {},
+            "memory_scope": "shared_ro",
+            "budget_tokens": 4000,
+            "output_schema": {
+              "type": "object",
+              "required": [
+                "summary",
+                "prioritized"
+              ],
+              "properties": {
+                "summary": {
+                  "type": "string",
+                  "minLength": 10
+                },
+                "prioritized": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": [
+                      "rank",
+                      "title",
+                      "severity"
+                    ],
+                    "properties": {
+                      "rank": {
+                        "type": "integer",
+                        "minimum": 1
+                      },
+                      "title": {
+                        "type": "string"
+                      },
+                      "severity": {
+                        "enum": [
+                          "low",
+                          "medium",
+                          "high",
+                          "critical"
+                        ]
+                      }
+                    }
+                  },
+                  "minItems": 1
+                }
+              }
+            },
+            "fallback_model": null,
+            "system_contract": "You verify findings produced by other agents. Drop anything unsupported, merge duplicates, and rank by severity. Output JSON only.",
+            "allowed_side_effects": []
+          },
+          "condition": null,
+          "compensates": null,
+          "max_retries": 1,
+          "chairman_policy": "strongest",
+          "council_members": []
+        },
+        {
+          "id": "comp_security",
+          "type": "compensate",
+          "agent": null,
+          "condition": null,
+          "compensates": "security",
+          "max_retries": 1,
+          "chairman_policy": "strongest",
+          "council_members": []
+        },
+        {
+          "id": "comp_quality",
+          "type": "compensate",
+          "agent": null,
+          "condition": null,
+          "compensates": "quality",
+          "max_retries": 1,
+          "chairman_policy": "strongest",
+          "council_members": []
+        },
+        {
+          "id": "comp_docs",
+          "type": "compensate",
+          "agent": null,
+          "condition": null,
+          "compensates": "docs",
+          "max_retries": 1,
+          "chairman_policy": "strongest",
+          "council_members": []
+        }
+      ],
+      "locked": false,
+      "version": 1,
+      "config_hash": "ed887d3d0aafa2ad8de0bdea2eeddb9436589766acdc3141ccbba8690ed70c15"
+    },
+    "status": "done",
+    "replay_of": null,
+    "last_seq": 30,
+    "started_at": "2026-08-07T09:50:01.473797+00:00",
+    "ended_at": "2026-08-07T09:50:05.402606+00:00"
+  },
+  "cost": {
+    "tokens_in": 560,
+    "tokens_out": 280,
+    "cost_usd": 0.00048,
+    "events": 30
+  },
+  "events": [
+    {
+      "run_id": "39cb421a-32f2-4ec0-a7f4-9b656880ac97",
+      "seq": 1,
+      "event_type": "RUN_START",
+      "node_id": null,
+      "agent_id": null,
+      "payload": {
+        "seed": 42,
+        "config_hash": "ed887d3d0aafa2ad8de0bdea2eeddb9436589766acdc3141ccbba8690ed70c15"
+      },
+      "tokens_in": 0,
+      "tokens_out": 0,
+      "cost_usd": 0.0,
+      "latency_ms": null,
+      "ts": "2026-08-07T09:50:01.676783+00:00"
+    },
+    {
+      "run_id": "39cb421a-32f2-4ec0-a7f4-9b656880ac97",
+      "seq": 2,
+      "event_type": "NODE_START",
+      "node_id": "clarify",
+      "agent_id": null,
+      "payload": {
+        "type": "clarify"
+      },
+      "tokens_in": 0,
+      "tokens_out": 0,
+      "cost_usd": 0.0,
+      "latency_ms": null,
+      "ts": "2026-08-07T09:50:01.942141+00:00"
+    },
+    {
+      "run_id": "39cb421a-32f2-4ec0-a7f4-9b656880ac97",
+      "seq": 3,
+      "event_type": "NODE_END",
+      "node_id": "clarify",
+      "agent_id": null,
+      "payload": {
+        "type": "clarify"
+      },
+      "tokens_in": 0,
+      "tokens_out": 0,
+      "cost_usd": 0.0,
+      "latency_ms": 158,
+      "ts": "2026-08-07T09:50:02.130728+00:00"
+    },
+    {
+      "run_id": "39cb421a-32f2-4ec0-a7f4-9b656880ac97",
+      "seq": 4,
+      "event_type": "APPROVAL_REQUESTED",
+      "node_id": "approve",
+      "agent_id": null,
+      "payload": {
+        "node": "approve"
+      },
+      "tokens_in": 0,
+      "tokens_out": 0,
+      "cost_usd": 0.0,
+      "latency_ms": null,
+      "ts": "2026-08-07T09:50:02.319718+00:00"
+    },
+    {
+      "run_id": "39cb421a-32f2-4ec0-a7f4-9b656880ac97",
+      "seq": 5,
+      "event_type": "APPROVAL_GRANTED",
+      "node_id": "approve",
+      "agent_id": null,
+      "payload": {
+        "node": "approve"
+      },
+      "tokens_in": 0,
+      "tokens_out": 0,
+      "cost_usd": 0.0,
+      "latency_ms": null,
+      "ts": "2026-08-07T09:50:02.451021+00:00"
+    },
+    {
+      "run_id": "39cb421a-32f2-4ec0-a7f4-9b656880ac97",
+      "seq": 6,
+      "event_type": "NODE_START",
+      "node_id": "fanout",
+      "agent_id": null,
+      "payload": {
+        "type": "fanout"
+      },
+      "tokens_in": 0,
+      "tokens_out": 0,
+      "cost_usd": 0.0,
+      "latency_ms": null,
+      "ts": "2026-08-07T09:50:02.594386+00:00"
+    },
+    {
+      "run_id": "39cb421a-32f2-4ec0-a7f4-9b656880ac97",
+      "seq": 7,
+      "event_type": "NODE_END",
+      "node_id": "fanout",
+      "agent_id": null,
+      "payload": {
+        "type": "fanout"
+      },
+      "tokens_in": 0,
+      "tokens_out": 0,
+      "cost_usd": 0.0,
+      "latency_ms": 122,
+      "ts": "2026-08-07T09:50:02.712665+00:00"
+    },
+    {
+      "run_id": "39cb421a-32f2-4ec0-a7f4-9b656880ac97",
+      "seq": 8,
+      "event_type": "NODE_START",
+      "node_id": "docs",
+      "agent_id": "docs",
+      "payload": {
+        "model": "ollama:llama3.2:3b",
+        "budget_tokens": 4000
+      },
+      "tokens_in": 0,
+      "tokens_out": 0,
+      "cost_usd": 0.0,
+      "latency_ms": null,
+      "ts": "2026-08-07T09:50:02.82289+00:00"
+    },
+    {
+      "run_id": "39cb421a-32f2-4ec0-a7f4-9b656880ac97",
+      "seq": 9,
+      "event_type": "TOOL_RESULT",
+      "node_id": "docs",
+      "agent_id": "docs",
+      "payload": {
+        "text": "{\"findings\": [{\"title\": \"No setup instructions for a fresh clone\", \"severity\": \"low\", \"recommendation\": \"Document the venv and migration steps\"}]}",
+        "model": "ollama:llama3.2:3b",
+        "replayed": false,
+        "used_fallback": false
+      },
+      "tokens_in": 140,
+      "tokens_out": 70,
+      "cost_usd": 0.00012,
+      "latency_ms": 50,
+      "ts": "2026-08-07T09:50:03.008039+00:00"
+    },
+    {
+      "run_id": "39cb421a-32f2-4ec0-a7f4-9b656880ac97",
+      "seq": 10,
+      "event_type": "HANDOFF_EMITTED",
+      "node_id": "docs",
+      "agent_id": "docs",
+      "payload": {
+        "raw": "{\"findings\": [{\"title\": \"No setup instructions for a fresh clone\", \"severity\": \"low\", \"recommendation\": \"Document the venv and migration steps\"}]}",
+        "attempt": 0
+      },
+      "tokens_in": 0,
+      "tokens_out": 0,
+      "cost_usd": 0.0,
+      "latency_ms": null,
+      "ts": "2026-08-07T09:50:03.165507+00:00"
+    },
+    {
+      "run_id": "39cb421a-32f2-4ec0-a7f4-9b656880ac97",
+      "seq": 11,
+      "event_type": "HANDOFF_VALIDATED",
+      "node_id": "docs",
+      "agent_id": "docs",
+      "payload": {
+        "attempt": 0,
+        "payload": {
+          "findings": [
+            {
+              "title": "No setup instructions for a fresh clone",
+              "severity": "low",
+              "recommendation": "Document the venv and migration steps"
+            }
+          ]
+        }
+      },
+      "tokens_in": 0,
+      "tokens_out": 0,
+      "cost_usd": 0.0,
+      "latency_ms": null,
+      "ts": "2026-08-07T09:50:03.265045+00:00"
+    },
+    {
+      "run_id": "39cb421a-32f2-4ec0-a7f4-9b656880ac97",
+      "seq": 12,
+      "event_type": "NODE_END",
+      "node_id": "docs",
+      "agent_id": "docs",
+      "payload": {
+        "ok": true,
+        "repair_attempts": 0
+      },
+      "tokens_in": 0,
+      "tokens_out": 0,
+      "cost_usd": 0.0,
+      "latency_ms": 548,
+      "ts": "2026-08-07T09:50:03.35384+00:00"
+    },
+    {
+      "run_id": "39cb421a-32f2-4ec0-a7f4-9b656880ac97",
+      "seq": 13,
+      "event_type": "NODE_START",
+      "node_id": "quality",
+      "agent_id": "quality",
+      "payload": {
+        "model": "ollama:qwen2.5:7b",
+        "budget_tokens": 4000
+      },
+      "tokens_in": 0,
+      "tokens_out": 0,
+      "cost_usd": 0.0,
+      "latency_ms": null,
+      "ts": "2026-08-07T09:50:03.385554+00:00"
+    },
+    {
+      "run_id": "39cb421a-32f2-4ec0-a7f4-9b656880ac97",
+      "seq": 14,
+      "event_type": "NODE_START",
+      "node_id": "security",
+      "agent_id": "security",
+      "payload": {
+        "model": "ollama:llama3.2:3b",
+        "budget_tokens": 4000
+      },
+      "tokens_in": 0,
+      "tokens_out": 0,
+      "cost_usd": 0.0,
+      "latency_ms": null,
+      "ts": "2026-08-07T09:50:03.50552+00:00"
+    },
+    {
+      "run_id": "39cb421a-32f2-4ec0-a7f4-9b656880ac97",
+      "seq": 15,
+      "event_type": "TOOL_RESULT",
+      "node_id": "quality",
+      "agent_id": "quality",
+      "payload": {
+        "text": "{\"findings\": [{\"title\": \"Duplicated retry logic across adapters\", \"severity\": \"medium\", \"recommendation\": \"Lift retry into the shared base adapter\"}]}",
+        "model": "ollama:qwen2.5:7b",
+        "replayed": false,
+        "used_fallback": false
+      },
+      "tokens_in": 140,
+      "tokens_out": 70,
+      "cost_usd": 0.00012,
+      "latency_ms": 50,
+      "ts": "2026-08-07T09:50:03.543909+00:00"
+    },
+    {
+      "run_id": "39cb421a-32f2-4ec0-a7f4-9b656880ac97",
+      "seq": 16,
+      "event_type": "HANDOFF_EMITTED",
+      "node_id": "quality",
+      "agent_id": "quality",
+      "payload": {
+        "raw": "{\"findings\": [{\"title\": \"Duplicated retry logic across adapters\", \"severity\": \"medium\", \"recommendation\": \"Lift retry into the shared base adapter\"}]}",
+        "attempt": 0
+      },
+      "tokens_in": 0,
+      "tokens_out": 0,
+      "cost_usd": 0.0,
+      "latency_ms": null,
+      "ts": "2026-08-07T09:50:03.650766+00:00"
+    },
+    {
+      "run_id": "39cb421a-32f2-4ec0-a7f4-9b656880ac97",
+      "seq": 17,
+      "event_type": "TOOL_RESULT",
+      "node_id": "security",
+      "agent_id": "security",
+      "payload": {
+        "text": "{\"findings\": [{\"title\": \"Service key readable from the client bundle\", \"severity\": \"critical\", \"recommendation\": \"Move all Supabase calls behind the API\"}]}",
+        "model": "ollama:llama3.2:3b",
+        "replayed": false,
+        "used_fallback": false
+      },
+      "tokens_in": 140,
+      "tokens_out": 70,
+      "cost_usd": 0.00012,
+      "latency_ms": 50,
+      "ts": "2026-08-07T09:50:03.654881+00:00"
+    },
+    {
+      "run_id": "39cb421a-32f2-4ec0-a7f4-9b656880ac97",
+      "seq": 18,
+      "event_type": "HANDOFF_VALIDATED",
+      "node_id": "quality",
+      "agent_id": "quality",
+      "payload": {
+        "attempt": 0,
+        "payload": {
+          "findings": [
+            {
+              "title": "Duplicated retry logic across adapters",
+              "severity": "medium",
+              "recommendation": "Lift retry into the shared base adapter"
+            }
+          ]
+        }
+      },
+      "tokens_in": 0,
+      "tokens_out": 0,
+      "cost_usd": 0.0,
+      "latency_ms": null,
+      "ts": "2026-08-07T09:50:03.73329+00:00"
+    },
+    {
+      "run_id": "39cb421a-32f2-4ec0-a7f4-9b656880ac97",
+      "seq": 19,
+      "event_type": "HANDOFF_EMITTED",
+      "node_id": "security",
+      "agent_id": "security",
+      "payload": {
+        "raw": "{\"findings\": [{\"title\": \"Service key readable from the client bundle\", \"severity\": \"critical\", \"recommendation\": \"Move all Supabase calls behind the API\"}]}",
+        "attempt": 0
+      },
+      "tokens_in": 0,
+      "tokens_out": 0,
+      "cost_usd": 0.0,
+      "latency_ms": null,
+      "ts": "2026-08-07T09:50:03.752985+00:00"
+    },
+    {
+      "run_id": "39cb421a-32f2-4ec0-a7f4-9b656880ac97",
+      "seq": 20,
+      "event_type": "NODE_END",
+      "node_id": "quality",
+      "agent_id": "quality",
+      "payload": {
+        "ok": true,
+        "repair_attempts": 0
+      },
+      "tokens_in": 0,
+      "tokens_out": 0,
+      "cost_usd": 0.0,
+      "latency_ms": 1014,
+      "ts": "2026-08-07T09:50:03.826803+00:00"
+    },
+    {
+      "run_id": "39cb421a-32f2-4ec0-a7f4-9b656880ac97",
+      "seq": 21,
+      "event_type": "HANDOFF_VALIDATED",
+      "node_id": "security",
+      "agent_id": "security",
+      "payload": {
+        "attempt": 0,
+        "payload": {
+          "findings": [
+            {
+              "title": "Service key readable from the client bundle",
+              "severity": "critical",
+              "recommendation": "Move all Supabase calls behind the API"
+            }
+          ]
+        }
+      },
+      "tokens_in": 0,
+      "tokens_out": 0,
+      "cost_usd": 0.0,
+      "latency_ms": null,
+      "ts": "2026-08-07T09:50:03.84579+00:00"
+    },
+    {
+      "run_id": "39cb421a-32f2-4ec0-a7f4-9b656880ac97",
+      "seq": 22,
+      "event_type": "NODE_END",
+      "node_id": "security",
+      "agent_id": "security",
+      "payload": {
+        "ok": true,
+        "repair_attempts": 0
+      },
+      "tokens_in": 0,
+      "tokens_out": 0,
+      "cost_usd": 0.0,
+      "latency_ms": 1132,
+      "ts": "2026-08-07T09:50:03.95167+00:00"
+    },
+    {
+      "run_id": "39cb421a-32f2-4ec0-a7f4-9b656880ac97",
+      "seq": 23,
+      "event_type": "NODE_START",
+      "node_id": "join",
+      "agent_id": null,
+      "payload": {
+        "type": "join"
+      },
+      "tokens_in": 0,
+      "tokens_out": 0,
+      "cost_usd": 0.0,
+      "latency_ms": null,
+      "ts": "2026-08-07T09:50:04.304985+00:00"
+    },
+    {
+      "run_id": "39cb421a-32f2-4ec0-a7f4-9b656880ac97",
+      "seq": 24,
+      "event_type": "NODE_END",
+      "node_id": "join",
+      "agent_id": null,
+      "payload": {
+        "type": "join"
+      },
+      "tokens_in": 0,
+      "tokens_out": 0,
+      "cost_usd": 0.0,
+      "latency_ms": 111,
+      "ts": "2026-08-07T09:50:04.434927+00:00"
+    },
+    {
+      "run_id": "39cb421a-32f2-4ec0-a7f4-9b656880ac97",
+      "seq": 25,
+      "event_type": "NODE_START",
+      "node_id": "verify",
+      "agent_id": "verifier",
+      "payload": {
+        "model": "ollama:qwen2.5:7b",
+        "budget_tokens": 4000
+      },
+      "tokens_in": 0,
+      "tokens_out": 0,
+      "cost_usd": 0.0,
+      "latency_ms": null,
+      "ts": "2026-08-07T09:50:04.542058+00:00"
+    },
+    {
+      "run_id": "39cb421a-32f2-4ec0-a7f4-9b656880ac97",
+      "seq": 26,
+      "event_type": "TOOL_RESULT",
+      "node_id": "verify",
+      "agent_id": "verifier",
+      "payload": {
+        "text": "{\"summary\": \"One critical credential-exposure issue dominates.\", \"prioritized\": [{\"rank\": 1, \"title\": \"Service key exposure\", \"severity\": \"critical\"}]}",
+        "model": "ollama:qwen2.5:7b",
+        "replayed": false,
+        "used_fallback": false
+      },
+      "tokens_in": 140,
+      "tokens_out": 70,
+      "cost_usd": 0.00012,
+      "latency_ms": 50,
+      "ts": "2026-08-07T09:50:04.71976+00:00"
+    },
+    {
+      "run_id": "39cb421a-32f2-4ec0-a7f4-9b656880ac97",
+      "seq": 27,
+      "event_type": "HANDOFF_EMITTED",
+      "node_id": "verify",
+      "agent_id": "verifier",
+      "payload": {
+        "raw": "{\"summary\": \"One critical credential-exposure issue dominates.\", \"prioritized\": [{\"rank\": 1, \"title\": \"Service key exposure\", \"severity\": \"critical\"}]}",
+        "attempt": 0
+      },
+      "tokens_in": 0,
+      "tokens_out": 0,
+      "cost_usd": 0.0,
+      "latency_ms": null,
+      "ts": "2026-08-07T09:50:04.816057+00:00"
+    },
+    {
+      "run_id": "39cb421a-32f2-4ec0-a7f4-9b656880ac97",
+      "seq": 28,
+      "event_type": "HANDOFF_VALIDATED",
+      "node_id": "verify",
+      "agent_id": "verifier",
+      "payload": {
+        "attempt": 0,
+        "payload": {
+          "summary": "One critical credential-exposure issue dominates.",
+          "prioritized": [
+            {
+              "rank": 1,
+              "title": "Service key exposure",
+              "severity": "critical"
+            }
+          ]
+        }
+      },
+      "tokens_in": 0,
+      "tokens_out": 0,
+      "cost_usd": 0.0,
+      "latency_ms": null,
+      "ts": "2026-08-07T09:50:04.966452+00:00"
+    },
+    {
+      "run_id": "39cb421a-32f2-4ec0-a7f4-9b656880ac97",
+      "seq": 29,
+      "event_type": "NODE_END",
+      "node_id": "verify",
+      "agent_id": "verifier",
+      "payload": {
+        "ok": true,
+        "repair_attempts": 0
+      },
+      "tokens_in": 0,
+      "tokens_out": 0,
+      "cost_usd": 0.0,
+      "latency_ms": 515,
+      "ts": "2026-08-07T09:50:05.10081+00:00"
+    },
+    {
+      "run_id": "39cb421a-32f2-4ec0-a7f4-9b656880ac97",
+      "seq": 30,
+      "event_type": "RUN_END",
+      "node_id": null,
+      "agent_id": null,
+      "payload": {
+        "ok": true,
+        "compensated": [],
+        "failed_nodes": [],
+        "wall_clock_ms": 3413,
+        "latency_sum_ms": 3600,
+        "parallel_efficiency": 1.055
+      },
+      "tokens_in": 0,
+      "tokens_out": 0,
+      "cost_usd": 0.0,
+      "latency_ms": null,
+      "ts": "2026-08-07T09:50:05.313248+00:00"
+    }
+  ]
+}

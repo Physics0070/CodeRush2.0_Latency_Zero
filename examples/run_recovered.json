@@ -1,0 +1,1228 @@
+{
+  "run": {
+    "run_id": "d35b869c-5f12-464b-b205-60042d9d2c79",
+    "goal": "Audit this repository and produce a prioritized remediation report.",
+    "config_hash": "ed887d3d0aafa2ad8de0bdea2eeddb9436589766acdc3141ccbba8690ed70c15",
+    "seed": 42,
+    "graph_spec": {
+      "edges": [
+        {
+          "to_node": "approve",
+          "from_node": "clarify",
+          "handoff_schema": {}
+        },
+        {
+          "to_node": "fanout",
+          "from_node": "approve",
+          "handoff_schema": {}
+        },
+        {
+          "to_node": "security",
+          "from_node": "fanout",
+          "handoff_schema": {
+            "type": "object",
+            "required": [
+              "findings"
+            ],
+            "properties": {
+              "findings": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "title",
+                    "severity",
+                    "recommendation"
+                  ],
+                  "properties": {
+                    "title": {
+                      "type": "string",
+                      "minLength": 3
+                    },
+                    "severity": {
+                      "enum": [
+                        "low",
+                        "medium",
+                        "high",
+                        "critical"
+                      ]
+                    },
+                    "recommendation": {
+                      "type": "string",
+                      "minLength": 3
+                    }
+                  }
+                },
+                "minItems": 1
+              }
+            }
+          }
+        },
+        {
+          "to_node": "quality",
+          "from_node": "fanout",
+          "handoff_schema": {
+            "type": "object",
+            "required": [
+              "findings"
+            ],
+            "properties": {
+              "findings": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "title",
+                    "severity",
+                    "recommendation"
+                  ],
+                  "properties": {
+                    "title": {
+                      "type": "string",
+                      "minLength": 3
+                    },
+                    "severity": {
+                      "enum": [
+                        "low",
+                        "medium",
+                        "high",
+                        "critical"
+                      ]
+                    },
+                    "recommendation": {
+                      "type": "string",
+                      "minLength": 3
+                    }
+                  }
+                },
+                "minItems": 1
+              }
+            }
+          }
+        },
+        {
+          "to_node": "docs",
+          "from_node": "fanout",
+          "handoff_schema": {
+            "type": "object",
+            "required": [
+              "findings"
+            ],
+            "properties": {
+              "findings": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "title",
+                    "severity",
+                    "recommendation"
+                  ],
+                  "properties": {
+                    "title": {
+                      "type": "string",
+                      "minLength": 3
+                    },
+                    "severity": {
+                      "enum": [
+                        "low",
+                        "medium",
+                        "high",
+                        "critical"
+                      ]
+                    },
+                    "recommendation": {
+                      "type": "string",
+                      "minLength": 3
+                    }
+                  }
+                },
+                "minItems": 1
+              }
+            }
+          }
+        },
+        {
+          "to_node": "join",
+          "from_node": "security",
+          "handoff_schema": {
+            "type": "object",
+            "required": [
+              "findings"
+            ],
+            "properties": {
+              "findings": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "title",
+                    "severity",
+                    "recommendation"
+                  ],
+                  "properties": {
+                    "title": {
+                      "type": "string",
+                      "minLength": 3
+                    },
+                    "severity": {
+                      "enum": [
+                        "low",
+                        "medium",
+                        "high",
+                        "critical"
+                      ]
+                    },
+                    "recommendation": {
+                      "type": "string",
+                      "minLength": 3
+                    }
+                  }
+                },
+                "minItems": 1
+              }
+            }
+          }
+        },
+        {
+          "to_node": "join",
+          "from_node": "quality",
+          "handoff_schema": {
+            "type": "object",
+            "required": [
+              "findings"
+            ],
+            "properties": {
+              "findings": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "title",
+                    "severity",
+                    "recommendation"
+                  ],
+                  "properties": {
+                    "title": {
+                      "type": "string",
+                      "minLength": 3
+                    },
+                    "severity": {
+                      "enum": [
+                        "low",
+                        "medium",
+                        "high",
+                        "critical"
+                      ]
+                    },
+                    "recommendation": {
+                      "type": "string",
+                      "minLength": 3
+                    }
+                  }
+                },
+                "minItems": 1
+              }
+            }
+          }
+        },
+        {
+          "to_node": "join",
+          "from_node": "docs",
+          "handoff_schema": {
+            "type": "object",
+            "required": [
+              "findings"
+            ],
+            "properties": {
+              "findings": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "title",
+                    "severity",
+                    "recommendation"
+                  ],
+                  "properties": {
+                    "title": {
+                      "type": "string",
+                      "minLength": 3
+                    },
+                    "severity": {
+                      "enum": [
+                        "low",
+                        "medium",
+                        "high",
+                        "critical"
+                      ]
+                    },
+                    "recommendation": {
+                      "type": "string",
+                      "minLength": 3
+                    }
+                  }
+                },
+                "minItems": 1
+              }
+            }
+          }
+        },
+        {
+          "to_node": "verify",
+          "from_node": "join",
+          "handoff_schema": {
+            "type": "object",
+            "required": [
+              "summary",
+              "prioritized"
+            ],
+            "properties": {
+              "summary": {
+                "type": "string",
+                "minLength": 10
+              },
+              "prioritized": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "rank",
+                    "title",
+                    "severity"
+                  ],
+                  "properties": {
+                    "rank": {
+                      "type": "integer",
+                      "minimum": 1
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "severity": {
+                      "enum": [
+                        "low",
+                        "medium",
+                        "high",
+                        "critical"
+                      ]
+                    }
+                  }
+                },
+                "minItems": 1
+              }
+            }
+          }
+        }
+      ],
+      "nodes": [
+        {
+          "id": "clarify",
+          "type": "clarify",
+          "agent": null,
+          "condition": null,
+          "compensates": null,
+          "max_retries": 1,
+          "chairman_policy": "strongest",
+          "council_members": []
+        },
+        {
+          "id": "approve",
+          "type": "approval",
+          "agent": null,
+          "condition": null,
+          "compensates": null,
+          "max_retries": 1,
+          "chairman_policy": "strongest",
+          "council_members": []
+        },
+        {
+          "id": "fanout",
+          "type": "fanout",
+          "agent": null,
+          "condition": null,
+          "compensates": null,
+          "max_retries": 1,
+          "chairman_policy": "strongest",
+          "council_members": []
+        },
+        {
+          "id": "security",
+          "type": "agent",
+          "agent": {
+            "id": "security",
+            "role": "Find security weaknesses.",
+            "model": "ollama:llama3.2:3b",
+            "tools": [
+              "read_file"
+            ],
+            "timeout_s": 180,
+            "input_schema": {},
+            "memory_scope": "shared_ro",
+            "budget_tokens": 4000,
+            "output_schema": {
+              "type": "object",
+              "required": [
+                "findings"
+              ],
+              "properties": {
+                "findings": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": [
+                      "title",
+                      "severity",
+                      "recommendation"
+                    ],
+                    "properties": {
+                      "title": {
+                        "type": "string",
+                        "minLength": 3
+                      },
+                      "severity": {
+                        "enum": [
+                          "low",
+                          "medium",
+                          "high",
+                          "critical"
+                        ]
+                      },
+                      "recommendation": {
+                        "type": "string",
+                        "minLength": 3
+                      }
+                    }
+                  },
+                  "minItems": 1
+                }
+              }
+            },
+            "fallback_model": null,
+            "system_contract": "You are the security specialist. Find security weaknesses.\nReport only what you can support from the material given to you. Output JSON only, matching the required schema. No prose, no markdown fence.",
+            "allowed_side_effects": []
+          },
+          "condition": null,
+          "compensates": null,
+          "max_retries": 1,
+          "chairman_policy": "strongest",
+          "council_members": []
+        },
+        {
+          "id": "quality",
+          "type": "agent",
+          "agent": {
+            "id": "quality",
+            "role": "Find code quality issues.",
+            "model": "ollama:qwen2.5:7b",
+            "tools": [
+              "read_file"
+            ],
+            "timeout_s": 180,
+            "input_schema": {},
+            "memory_scope": "shared_ro",
+            "budget_tokens": 4000,
+            "output_schema": {
+              "type": "object",
+              "required": [
+                "findings"
+              ],
+              "properties": {
+                "findings": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": [
+                      "title",
+                      "severity",
+                      "recommendation"
+                    ],
+                    "properties": {
+                      "title": {
+                        "type": "string",
+                        "minLength": 3
+                      },
+                      "severity": {
+                        "enum": [
+                          "low",
+                          "medium",
+                          "high",
+                          "critical"
+                        ]
+                      },
+                      "recommendation": {
+                        "type": "string",
+                        "minLength": 3
+                      }
+                    }
+                  },
+                  "minItems": 1
+                }
+              }
+            },
+            "fallback_model": null,
+            "system_contract": "You are the quality specialist. Find code quality issues.\nReport only what you can support from the material given to you. Output JSON only, matching the required schema. No prose, no markdown fence.",
+            "allowed_side_effects": []
+          },
+          "condition": null,
+          "compensates": null,
+          "max_retries": 1,
+          "chairman_policy": "strongest",
+          "council_members": []
+        },
+        {
+          "id": "docs",
+          "type": "agent",
+          "agent": {
+            "id": "docs",
+            "role": "Find documentation gaps.",
+            "model": "ollama:llama3.2:3b",
+            "tools": [
+              "read_file"
+            ],
+            "timeout_s": 180,
+            "input_schema": {},
+            "memory_scope": "shared_ro",
+            "budget_tokens": 4000,
+            "output_schema": {
+              "type": "object",
+              "required": [
+                "findings"
+              ],
+              "properties": {
+                "findings": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": [
+                      "title",
+                      "severity",
+                      "recommendation"
+                    ],
+                    "properties": {
+                      "title": {
+                        "type": "string",
+                        "minLength": 3
+                      },
+                      "severity": {
+                        "enum": [
+                          "low",
+                          "medium",
+                          "high",
+                          "critical"
+                        ]
+                      },
+                      "recommendation": {
+                        "type": "string",
+                        "minLength": 3
+                      }
+                    }
+                  },
+                  "minItems": 1
+                }
+              }
+            },
+            "fallback_model": null,
+            "system_contract": "You are the docs specialist. Find documentation gaps.\nReport only what you can support from the material given to you. Output JSON only, matching the required schema. No prose, no markdown fence.",
+            "allowed_side_effects": []
+          },
+          "condition": null,
+          "compensates": null,
+          "max_retries": 1,
+          "chairman_policy": "strongest",
+          "council_members": []
+        },
+        {
+          "id": "join",
+          "type": "join",
+          "agent": null,
+          "condition": null,
+          "compensates": null,
+          "max_retries": 1,
+          "chairman_policy": "strongest",
+          "council_members": []
+        },
+        {
+          "id": "verify",
+          "type": "verify",
+          "agent": {
+            "id": "verifier",
+            "role": "Independent verification of the merged findings",
+            "model": "ollama:qwen2.5:7b",
+            "tools": [],
+            "timeout_s": 180,
+            "input_schema": {},
+            "memory_scope": "shared_ro",
+            "budget_tokens": 4000,
+            "output_schema": {
+              "type": "object",
+              "required": [
+                "summary",
+                "prioritized"
+              ],
+              "properties": {
+                "summary": {
+                  "type": "string",
+                  "minLength": 10
+                },
+                "prioritized": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": [
+                      "rank",
+                      "title",
+                      "severity"
+                    ],
+                    "properties": {
+                      "rank": {
+                        "type": "integer",
+                        "minimum": 1
+                      },
+                      "title": {
+                        "type": "string"
+                      },
+                      "severity": {
+                        "enum": [
+                          "low",
+                          "medium",
+                          "high",
+                          "critical"
+                        ]
+                      }
+                    }
+                  },
+                  "minItems": 1
+                }
+              }
+            },
+            "fallback_model": null,
+            "system_contract": "You verify findings produced by other agents. Drop anything unsupported, merge duplicates, and rank by severity. Output JSON only.",
+            "allowed_side_effects": []
+          },
+          "condition": null,
+          "compensates": null,
+          "max_retries": 1,
+          "chairman_policy": "strongest",
+          "council_members": []
+        },
+        {
+          "id": "comp_security",
+          "type": "compensate",
+          "agent": null,
+          "condition": null,
+          "compensates": "security",
+          "max_retries": 1,
+          "chairman_policy": "strongest",
+          "council_members": []
+        },
+        {
+          "id": "comp_quality",
+          "type": "compensate",
+          "agent": null,
+          "condition": null,
+          "compensates": "quality",
+          "max_retries": 1,
+          "chairman_policy": "strongest",
+          "council_members": []
+        },
+        {
+          "id": "comp_docs",
+          "type": "compensate",
+          "agent": null,
+          "condition": null,
+          "compensates": "docs",
+          "max_retries": 1,
+          "chairman_policy": "strongest",
+          "council_members": []
+        }
+      ],
+      "locked": false,
+      "version": 1,
+      "config_hash": "ed887d3d0aafa2ad8de0bdea2eeddb9436589766acdc3141ccbba8690ed70c15"
+    },
+    "status": "failed",
+    "replay_of": null,
+    "last_seq": 33,
+    "started_at": "2026-08-07T09:50:05.531626+00:00",
+    "ended_at": "2026-08-07T09:50:08.344819+00:00"
+  },
+  "cost": {
+    "tokens_in": 280,
+    "tokens_out": 140,
+    "cost_usd": 0.00024,
+    "events": 33
+  },
+  "events": [
+    {
+      "run_id": "d35b869c-5f12-464b-b205-60042d9d2c79",
+      "seq": 1,
+      "event_type": "RUN_START",
+      "node_id": null,
+      "agent_id": null,
+      "payload": {
+        "seed": 42,
+        "config_hash": "ed887d3d0aafa2ad8de0bdea2eeddb9436589766acdc3141ccbba8690ed70c15"
+      },
+      "tokens_in": 0,
+      "tokens_out": 0,
+      "cost_usd": 0.0,
+      "latency_ms": null,
+      "ts": "2026-08-07T09:50:05.635048+00:00"
+    },
+    {
+      "run_id": "d35b869c-5f12-464b-b205-60042d9d2c79",
+      "seq": 2,
+      "event_type": "NODE_START",
+      "node_id": "clarify",
+      "agent_id": null,
+      "payload": {
+        "type": "clarify"
+      },
+      "tokens_in": 0,
+      "tokens_out": 0,
+      "cost_usd": 0.0,
+      "latency_ms": null,
+      "ts": "2026-08-07T09:50:05.871962+00:00"
+    },
+    {
+      "run_id": "d35b869c-5f12-464b-b205-60042d9d2c79",
+      "seq": 3,
+      "event_type": "NODE_END",
+      "node_id": "clarify",
+      "agent_id": null,
+      "payload": {
+        "type": "clarify"
+      },
+      "tokens_in": 0,
+      "tokens_out": 0,
+      "cost_usd": 0.0,
+      "latency_ms": 112,
+      "ts": "2026-08-07T09:50:05.998108+00:00"
+    },
+    {
+      "run_id": "d35b869c-5f12-464b-b205-60042d9d2c79",
+      "seq": 4,
+      "event_type": "APPROVAL_REQUESTED",
+      "node_id": "approve",
+      "agent_id": null,
+      "payload": {
+        "node": "approve"
+      },
+      "tokens_in": 0,
+      "tokens_out": 0,
+      "cost_usd": 0.0,
+      "latency_ms": null,
+      "ts": "2026-08-07T09:50:06.097061+00:00"
+    },
+    {
+      "run_id": "d35b869c-5f12-464b-b205-60042d9d2c79",
+      "seq": 5,
+      "event_type": "APPROVAL_GRANTED",
+      "node_id": "approve",
+      "agent_id": null,
+      "payload": {
+        "node": "approve"
+      },
+      "tokens_in": 0,
+      "tokens_out": 0,
+      "cost_usd": 0.0,
+      "latency_ms": null,
+      "ts": "2026-08-07T09:50:06.187752+00:00"
+    },
+    {
+      "run_id": "d35b869c-5f12-464b-b205-60042d9d2c79",
+      "seq": 6,
+      "event_type": "NODE_START",
+      "node_id": "fanout",
+      "agent_id": null,
+      "payload": {
+        "type": "fanout"
+      },
+      "tokens_in": 0,
+      "tokens_out": 0,
+      "cost_usd": 0.0,
+      "latency_ms": null,
+      "ts": "2026-08-07T09:50:06.2846+00:00"
+    },
+    {
+      "run_id": "d35b869c-5f12-464b-b205-60042d9d2c79",
+      "seq": 7,
+      "event_type": "NODE_END",
+      "node_id": "fanout",
+      "agent_id": null,
+      "payload": {
+        "type": "fanout"
+      },
+      "tokens_in": 0,
+      "tokens_out": 0,
+      "cost_usd": 0.0,
+      "latency_ms": 113,
+      "ts": "2026-08-07T09:50:06.390807+00:00"
+    },
+    {
+      "run_id": "d35b869c-5f12-464b-b205-60042d9d2c79",
+      "seq": 8,
+      "event_type": "NODE_START",
+      "node_id": "quality",
+      "agent_id": "quality",
+      "payload": {
+        "model": "ollama:qwen2.5:7b",
+        "budget_tokens": 4000
+      },
+      "tokens_in": 0,
+      "tokens_out": 0,
+      "cost_usd": 0.0,
+      "latency_ms": null,
+      "ts": "2026-08-07T09:50:06.500412+00:00"
+    },
+    {
+      "run_id": "d35b869c-5f12-464b-b205-60042d9d2c79",
+      "seq": 9,
+      "event_type": "NODE_START",
+      "node_id": "security",
+      "agent_id": "security",
+      "payload": {
+        "model": "ollama:llama3.2:3b",
+        "budget_tokens": 4000
+      },
+      "tokens_in": 0,
+      "tokens_out": 0,
+      "cost_usd": 0.0,
+      "latency_ms": null,
+      "ts": "2026-08-07T09:50:06.507824+00:00"
+    },
+    {
+      "run_id": "d35b869c-5f12-464b-b205-60042d9d2c79",
+      "seq": 10,
+      "event_type": "NODE_START",
+      "node_id": "docs",
+      "agent_id": "docs",
+      "payload": {
+        "model": "ollama:llama3.2:3b",
+        "budget_tokens": 4000
+      },
+      "tokens_in": 0,
+      "tokens_out": 0,
+      "cost_usd": 0.0,
+      "latency_ms": null,
+      "ts": "2026-08-07T09:50:06.524027+00:00"
+    },
+    {
+      "run_id": "d35b869c-5f12-464b-b205-60042d9d2c79",
+      "seq": 11,
+      "event_type": "TOOL_RESULT",
+      "node_id": "security",
+      "agent_id": "security",
+      "payload": {
+        "text": "{\"findings\": [{\"title\": \"Service key readable from the client bundle\", \"severity\": \"critical\", \"recommendation\": \"Move all Supabase calls behind the API\"}]}",
+        "model": "ollama:llama3.2:3b",
+        "replayed": false,
+        "used_fallback": false
+      },
+      "tokens_in": 140,
+      "tokens_out": 70,
+      "cost_usd": 0.00012,
+      "latency_ms": 50,
+      "ts": "2026-08-07T09:50:06.671773+00:00"
+    },
+    {
+      "run_id": "d35b869c-5f12-464b-b205-60042d9d2c79",
+      "seq": 12,
+      "event_type": "TOOL_RESULT",
+      "node_id": "docs",
+      "agent_id": "docs",
+      "payload": {
+        "text": "the repository looks fine",
+        "model": "ollama:llama3.2:3b",
+        "replayed": false,
+        "used_fallback": false
+      },
+      "tokens_in": 0,
+      "tokens_out": 0,
+      "cost_usd": 0.0,
+      "latency_ms": 0,
+      "ts": "2026-08-07T09:50:06.683771+00:00"
+    },
+    {
+      "run_id": "d35b869c-5f12-464b-b205-60042d9d2c79",
+      "seq": 13,
+      "event_type": "TOOL_RESULT",
+      "node_id": "quality",
+      "agent_id": "quality",
+      "payload": {
+        "text": "{\"findings\": [{\"title\": \"Duplicated retry logic across adapters\", \"severity\": \"medium\", \"recommendation\": \"Lift retry into the shared base adapter\"}]}",
+        "model": "ollama:qwen2.5:7b",
+        "replayed": false,
+        "used_fallback": false
+      },
+      "tokens_in": 140,
+      "tokens_out": 70,
+      "cost_usd": 0.00012,
+      "latency_ms": 50,
+      "ts": "2026-08-07T09:50:06.690391+00:00"
+    },
+    {
+      "run_id": "d35b869c-5f12-464b-b205-60042d9d2c79",
+      "seq": 14,
+      "event_type": "HANDOFF_EMITTED",
+      "node_id": "security",
+      "agent_id": "security",
+      "payload": {
+        "raw": "{\"findings\": [{\"title\": \"Service key readable from the client bundle\", \"severity\": \"critical\", \"recommendation\": \"Move all Supabase calls behind the API\"}]}",
+        "attempt": 0
+      },
+      "tokens_in": 0,
+      "tokens_out": 0,
+      "cost_usd": 0.0,
+      "latency_ms": null,
+      "ts": "2026-08-07T09:50:06.767761+00:00"
+    },
+    {
+      "run_id": "d35b869c-5f12-464b-b205-60042d9d2c79",
+      "seq": 15,
+      "event_type": "HANDOFF_EMITTED",
+      "node_id": "docs",
+      "agent_id": "docs",
+      "payload": {
+        "raw": "the repository looks fine",
+        "attempt": 0
+      },
+      "tokens_in": 0,
+      "tokens_out": 0,
+      "cost_usd": 0.0,
+      "latency_ms": null,
+      "ts": "2026-08-07T09:50:06.793786+00:00"
+    },
+    {
+      "run_id": "d35b869c-5f12-464b-b205-60042d9d2c79",
+      "seq": 16,
+      "event_type": "HANDOFF_EMITTED",
+      "node_id": "quality",
+      "agent_id": "quality",
+      "payload": {
+        "raw": "{\"findings\": [{\"title\": \"Duplicated retry logic across adapters\", \"severity\": \"medium\", \"recommendation\": \"Lift retry into the shared base adapter\"}]}",
+        "attempt": 0
+      },
+      "tokens_in": 0,
+      "tokens_out": 0,
+      "cost_usd": 0.0,
+      "latency_ms": null,
+      "ts": "2026-08-07T09:50:06.800849+00:00"
+    },
+    {
+      "run_id": "d35b869c-5f12-464b-b205-60042d9d2c79",
+      "seq": 17,
+      "event_type": "HANDOFF_VALIDATED",
+      "node_id": "security",
+      "agent_id": "security",
+      "payload": {
+        "attempt": 0,
+        "payload": {
+          "findings": [
+            {
+              "title": "Service key readable from the client bundle",
+              "severity": "critical",
+              "recommendation": "Move all Supabase calls behind the API"
+            }
+          ]
+        }
+      },
+      "tokens_in": 0,
+      "tokens_out": 0,
+      "cost_usd": 0.0,
+      "latency_ms": null,
+      "ts": "2026-08-07T09:50:06.878111+00:00"
+    },
+    {
+      "run_id": "d35b869c-5f12-464b-b205-60042d9d2c79",
+      "seq": 18,
+      "event_type": "HANDOFF_REJECTED",
+      "node_id": "docs",
+      "agent_id": "docs",
+      "payload": {
+        "errors": [
+          "output is not valid JSON: Expecting value (line 1, column 1)"
+        ],
+        "attempt": 0
+      },
+      "tokens_in": 0,
+      "tokens_out": 0,
+      "cost_usd": 0.0,
+      "latency_ms": null,
+      "ts": "2026-08-07T09:50:06.896823+00:00"
+    },
+    {
+      "run_id": "d35b869c-5f12-464b-b205-60042d9d2c79",
+      "seq": 19,
+      "event_type": "HANDOFF_VALIDATED",
+      "node_id": "quality",
+      "agent_id": "quality",
+      "payload": {
+        "attempt": 0,
+        "payload": {
+          "findings": [
+            {
+              "title": "Duplicated retry logic across adapters",
+              "severity": "medium",
+              "recommendation": "Lift retry into the shared base adapter"
+            }
+          ]
+        }
+      },
+      "tokens_in": 0,
+      "tokens_out": 0,
+      "cost_usd": 0.0,
+      "latency_ms": null,
+      "ts": "2026-08-07T09:50:06.907645+00:00"
+    },
+    {
+      "run_id": "d35b869c-5f12-464b-b205-60042d9d2c79",
+      "seq": 20,
+      "event_type": "NODE_END",
+      "node_id": "security",
+      "agent_id": "security",
+      "payload": {
+        "ok": true,
+        "repair_attempts": 0
+      },
+      "tokens_in": 0,
+      "tokens_out": 0,
+      "cost_usd": 0.0,
+      "latency_ms": 499,
+      "ts": "2026-08-07T09:50:06.987621+00:00"
+    },
+    {
+      "run_id": "d35b869c-5f12-464b-b205-60042d9d2c79",
+      "seq": 21,
+      "event_type": "NODE_END",
+      "node_id": "quality",
+      "agent_id": "quality",
+      "payload": {
+        "ok": true,
+        "repair_attempts": 0
+      },
+      "tokens_in": 0,
+      "tokens_out": 0,
+      "cost_usd": 0.0,
+      "latency_ms": 530,
+      "ts": "2026-08-07T09:50:07.04747+00:00"
+    },
+    {
+      "run_id": "d35b869c-5f12-464b-b205-60042d9d2c79",
+      "seq": 22,
+      "event_type": "REPAIR_ATTEMPT",
+      "node_id": "docs",
+      "agent_id": "docs",
+      "payload": {
+        "of": 2,
+        "attempt": 1,
+        "errors_returned": [
+          "output is not valid JSON: Expecting value (line 1, column 1)"
+        ]
+      },
+      "tokens_in": 0,
+      "tokens_out": 0,
+      "cost_usd": 0.0,
+      "latency_ms": null,
+      "ts": "2026-08-07T09:50:07.048876+00:00"
+    },
+    {
+      "run_id": "d35b869c-5f12-464b-b205-60042d9d2c79",
+      "seq": 23,
+      "event_type": "TOOL_RESULT",
+      "node_id": "docs",
+      "agent_id": "docs",
+      "payload": {
+        "text": "the repository looks fine",
+        "model": "ollama:llama3.2:3b",
+        "replayed": false,
+        "used_fallback": false
+      },
+      "tokens_in": 0,
+      "tokens_out": 0,
+      "cost_usd": 0.0,
+      "latency_ms": 0,
+      "ts": "2026-08-07T09:50:07.209268+00:00"
+    },
+    {
+      "run_id": "d35b869c-5f12-464b-b205-60042d9d2c79",
+      "seq": 24,
+      "event_type": "HANDOFF_EMITTED",
+      "node_id": "docs",
+      "agent_id": "docs",
+      "payload": {
+        "raw": "the repository looks fine",
+        "attempt": 1
+      },
+      "tokens_in": 0,
+      "tokens_out": 0,
+      "cost_usd": 0.0,
+      "latency_ms": null,
+      "ts": "2026-08-07T09:50:07.304338+00:00"
+    },
+    {
+      "run_id": "d35b869c-5f12-464b-b205-60042d9d2c79",
+      "seq": 25,
+      "event_type": "HANDOFF_REJECTED",
+      "node_id": "docs",
+      "agent_id": "docs",
+      "payload": {
+        "errors": [
+          "output is not valid JSON: Expecting value (line 1, column 1)"
+        ],
+        "attempt": 1
+      },
+      "tokens_in": 0,
+      "tokens_out": 0,
+      "cost_usd": 0.0,
+      "latency_ms": null,
+      "ts": "2026-08-07T09:50:07.397678+00:00"
+    },
+    {
+      "run_id": "d35b869c-5f12-464b-b205-60042d9d2c79",
+      "seq": 26,
+      "event_type": "REPAIR_ATTEMPT",
+      "node_id": "docs",
+      "agent_id": "docs",
+      "payload": {
+        "of": 2,
+        "attempt": 2,
+        "errors_returned": [
+          "output is not valid JSON: Expecting value (line 1, column 1)"
+        ]
+      },
+      "tokens_in": 0,
+      "tokens_out": 0,
+      "cost_usd": 0.0,
+      "latency_ms": null,
+      "ts": "2026-08-07T09:50:07.50319+00:00"
+    },
+    {
+      "run_id": "d35b869c-5f12-464b-b205-60042d9d2c79",
+      "seq": 27,
+      "event_type": "TOOL_RESULT",
+      "node_id": "docs",
+      "agent_id": "docs",
+      "payload": {
+        "text": "the repository looks fine",
+        "model": "ollama:llama3.2:3b",
+        "replayed": false,
+        "used_fallback": false
+      },
+      "tokens_in": 0,
+      "tokens_out": 0,
+      "cost_usd": 0.0,
+      "latency_ms": 0,
+      "ts": "2026-08-07T09:50:07.659828+00:00"
+    },
+    {
+      "run_id": "d35b869c-5f12-464b-b205-60042d9d2c79",
+      "seq": 28,
+      "event_type": "HANDOFF_EMITTED",
+      "node_id": "docs",
+      "agent_id": "docs",
+      "payload": {
+        "raw": "the repository looks fine",
+        "attempt": 2
+      },
+      "tokens_in": 0,
+      "tokens_out": 0,
+      "cost_usd": 0.0,
+      "latency_ms": null,
+      "ts": "2026-08-07T09:50:07.788439+00:00"
+    },
+    {
+      "run_id": "d35b869c-5f12-464b-b205-60042d9d2c79",
+      "seq": 29,
+      "event_type": "HANDOFF_REJECTED",
+      "node_id": "docs",
+      "agent_id": "docs",
+      "payload": {
+        "errors": [
+          "output is not valid JSON: Expecting value (line 1, column 1)"
+        ],
+        "attempt": 2
+      },
+      "tokens_in": 0,
+      "tokens_out": 0,
+      "cost_usd": 0.0,
+      "latency_ms": null,
+      "ts": "2026-08-07T09:50:07.87654+00:00"
+    },
+    {
+      "run_id": "d35b869c-5f12-464b-b205-60042d9d2c79",
+      "seq": 30,
+      "event_type": "BRANCH_FAILED",
+      "node_id": "docs",
+      "agent_id": "docs",
+      "payload": {
+        "errors": [
+          "output is not valid JSON: Expecting value (line 1, column 1)"
+        ],
+        "reason": "handoff_unrepairable",
+        "attempts": 3
+      },
+      "tokens_in": 0,
+      "tokens_out": 0,
+      "cost_usd": 0.0,
+      "latency_ms": null,
+      "ts": "2026-08-07T09:50:07.978464+00:00"
+    },
+    {
+      "run_id": "d35b869c-5f12-464b-b205-60042d9d2c79",
+      "seq": 31,
+      "event_type": "NODE_END",
+      "node_id": "docs",
+      "agent_id": "docs",
+      "payload": {
+        "ok": false,
+        "repair_attempts": 3
+      },
+      "tokens_in": 0,
+      "tokens_out": 0,
+      "cost_usd": 0.0,
+      "latency_ms": 1585,
+      "ts": "2026-08-07T09:50:08.072106+00:00"
+    },
+    {
+      "run_id": "d35b869c-5f12-464b-b205-60042d9d2c79",
+      "seq": 32,
+      "event_type": "COMPENSATE",
+      "node_id": "comp_docs",
+      "agent_id": null,
+      "payload": {
+        "compensates": "docs"
+      },
+      "tokens_in": 0,
+      "tokens_out": 0,
+      "cost_usd": 0.0,
+      "latency_ms": null,
+      "ts": "2026-08-07T09:50:08.155509+00:00"
+    },
+    {
+      "run_id": "d35b869c-5f12-464b-b205-60042d9d2c79",
+      "seq": 33,
+      "event_type": "RUN_END",
+      "node_id": null,
+      "agent_id": null,
+      "payload": {
+        "ok": false,
+        "compensated": [
+          "comp_docs"
+        ],
+        "failed_nodes": [
+          "docs"
+        ],
+        "wall_clock_ms": 2382,
+        "latency_sum_ms": 2839,
+        "parallel_efficiency": 1.192
+      },
+      "tokens_in": 0,
+      "tokens_out": 0,
+      "cost_usd": 0.0,
+      "latency_ms": null,
+      "ts": "2026-08-07T09:50:08.250264+00:00"
+    }
+  ]
+}
