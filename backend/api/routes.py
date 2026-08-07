@@ -10,6 +10,7 @@ from sse_starlette.sse import EventSourceResponse
 
 from backend.api.schemas import (
     ApprovalRequest,
+    ChatRequest,
     CompileRequest,
     GoalRequest,
     MarginalValueRequest,
@@ -50,13 +51,82 @@ async def models() -> dict:
     return {"models": await _default_models(), "providers": configured_providers()}
 
 
+@router.post("/chat")
+async def chat(req: ChatRequest, request: Request) -> EventSourceResponse:
+    """Ask anything, get an answer. SSE so the answer streams like a chat should.
+
+    The turn also reports what it cost to produce - route taken, specialists
+    consulted, overlap between them - which is the whole point of orchestrating
+    rather than forwarding the question to one model.
+    """
+    from backend.chat import run_turn
+
+    models_ = req.models or await _default_models()
+    history = [m.model_dump() for m in req.history]
+
+    async def gen():
+        store: EventStore | None = None
+        try:
+            store = EventStore()
+            await store.__aenter__()
+        except Exception as e:
+            log.warning("chat running without the event log: %s", e)
+            store = None
+        try:
+            async for evt in run_turn(
+                req.message, history=history, models=models_, seed=req.seed, store=store
+            ):
+                if await request.is_disconnected():
+                    return
+                yield {"event": evt["event"], "data": json.dumps(evt["data"], default=str)}
+        except Exception as e:
+            log.exception("chat turn failed")
+            yield {"event": "error", "data": json.dumps({"detail": str(e)[:300]})}
+        finally:
+            if store is not None:
+                await store.__aexit__(None, None, None)
+
+    return EventSourceResponse(gen())
+
+
+@router.post("/chat/plan")
+async def chat_plan(req: ChatRequest) -> dict:
+    """The routing decision on its own, without answering.
+
+    Exposed because "why did this question get four agents and that one get
+    none" is the first thing anyone asks about the router.
+    """
+    from backend.chat import plan_for
+
+    models_ = req.models or await _default_models()
+    plan = await plan_for(req.message, models_[0] if models_ else None)
+    return {
+        **plan.model_dump(),
+        "route": "council" if plan.needs_council else "fast",
+    }
+
+
 @router.post("/clarify")
 async def clarify(req: GoalRequest) -> dict:
-    """Demo step 2: ask, then ask permission. Nothing runs yet."""
-    questions = clarifying_questions(req.goal)
+    """Ask about THIS goal, then ask permission. Nothing runs yet.
+
+    The questions come from a planner that reads the goal. The fixed list is
+    still the fallback, because a clarify step that fails because the planner
+    model is down is worse than three generic questions.
+    """
+    from backend.chat import plan_for
+
+    models_ = req.models or await _default_models()
+    plan = await plan_for(req.goal, models_[0] if models_ else None)
+
+    questions = plan.clarifying_questions or clarifying_questions(req.goal)
+    branches = [s.id for s in plan.specialists] or ["security", "quality", "docs"]
     return {
         "questions": [{"id": f"q{i}", "text": q} for i, q in enumerate(questions)],
-        "permission": permission_prompt(["security", "quality", "docs"]),
+        "permission": permission_prompt(branches),
+        "plan": {"intent": plan.intent, "complexity": plan.complexity,
+                 "rationale": plan.rationale, "source": plan.source,
+                 "specialists": [{"id": s.id, "role": s.role} for s in plan.specialists]},
     }
 
 

@@ -201,7 +201,20 @@ async def compile_graph(
         elif isinstance(content, list):
             branches = content
     except Exception as e:
-        log.warning("council compile failed, using default graph: %s", e)
+        log.warning("council compile failed: %s", e)
+
+    if len(branches) < 2:
+        # Ask a planner what THIS goal's dimensions are before falling back to
+        # the generic security/quality/docs set. That set is right for a code
+        # audit and wrong for everything else, and it used to be applied to
+        # every goal regardless of what was asked.
+        from backend.chat.planner import plan_for
+
+        plan = await plan_for(goal, members[0] if members else None)
+        if len(plan.specialists) >= 2:
+            log.info("council gave %d branches, planner supplied %d",
+                     len(branches), len(plan.specialists))
+            branches = plan.branch_dicts()
 
     graph = build_graph(branches, members, verifier_model=members[-1])
 
