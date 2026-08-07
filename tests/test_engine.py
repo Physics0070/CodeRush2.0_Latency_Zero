@@ -21,13 +21,20 @@ pytestmark = pytest.mark.skipif(
     not (settings.supabase_url and settings.supabase_service_key), reason="supabase not configured"
 )
 
-# Each append is a network round trip to Supabase (~150-400ms from here). That
-# fixed cost is charged to wall clock but not to node latency, so it dilutes
-# Parallel Efficiency for very short nodes: at 0.6s/branch PE measured 1.89 even
-# though the branches provably overlapped. Real agent calls are 6-13s, where the
-# overhead is noise and PE approaches the branch count. 2.0s keeps that ratio
-# honest without making the suite slow.
-BRANCH_DELAY = 2.0
+# Functional tests below only need a branch to take *some* time, so keep this
+# short - the suite runs these eight times.
+BRANCH_DELAY = 0.3
+
+# Parallel Efficiency is measured separately, at a realistic branch duration.
+#
+# Every event append is a network round trip to Supabase (~150-400ms from here),
+# and a node writes five of them. That fixed cost lands in wall clock but not in
+# node latency, so it dilutes PE for short nodes: 0.6s branches measured 1.89 and
+# 2.0s branches measured 1.976 - both under 2.0 despite the branches provably
+# overlapping by timestamp. Real agent calls take 6-13s, where the overhead is
+# noise and PE approaches the branch count. 4.0s reproduces that regime without
+# making the suite unbearable.
+PE_BRANCH_DELAY = 4.0
 SCHEMA = {
     "type": "object",
     "required": ["findings"],
@@ -137,27 +144,46 @@ def test_side_effect_with_upstream_approval_is_allowed():
 # ----------------------------------------------------------------- execution
 
 
-async def test_three_branches_run_concurrently(store):
-    rid, result = await _run(store, fanout_graph(), completer=completer())
+async def test_three_branches_start_before_any_finishes(store):
+    """The load-bearing proof of concurrency: overlap in wall-clock timestamps.
 
+    This is independent of logging overhead, so unlike the ratio below it cannot
+    be diluted by a slow database.
+    """
+    from datetime import datetime
+
+    rid, result = await _run(store, fanout_graph(), completer=completer())
     assert result.ok, result.failed_nodes
-    # Three 0.6s branches serialised would be ~1.8s of wall clock; concurrent
-    # they overlap, so summed latency divided by wall clock exceeds 2.
+
+    events = await store.read(rid)
+    branches = {"security", "quality", "docs"}
+    starts = {
+        e.node_id: e.ts for e in events
+        if e.event_type == EventType.NODE_START and e.node_id in branches
+    }
+    ends = {
+        e.node_id: e.ts for e in events
+        if e.event_type == EventType.NODE_END and e.node_id in branches
+    }
+    assert len(starts) == 3 and len(ends) == 3
+
+    last_start = max(datetime.fromisoformat(t) for t in starts.values())
+    first_end = min(datetime.fromisoformat(t) for t in ends.values())
+    # Serial execution would put every start after some other branch's end.
+    assert last_start < first_end, (
+        f"branches did not overlap: last start {last_start} >= first end {first_end}"
+    )
+
+
+async def test_parallel_efficiency_exceeds_two(store):
+    """Σ(node latencies) / wall_clock > 2 for three concurrent branches."""
+    _, result = await _run(
+        store, fanout_graph(), completer=completer(delay=PE_BRANCH_DELAY)
+    )
+    assert result.ok, result.failed_nodes
     assert result.parallel_efficiency > 2.0, (
         f"PE={result.parallel_efficiency} wall={result.wall_clock_ms}ms"
     )
-
-    events = await store.read(rid)
-    starts = {
-        e.node_id: e.ts for e in events
-        if e.event_type == EventType.NODE_START and e.node_id in {"security", "quality", "docs"}
-    }
-    assert len(starts) == 3
-    from datetime import datetime
-
-    stamps = sorted(datetime.fromisoformat(t) for t in starts.values())
-    spread = (stamps[-1] - stamps[0]).total_seconds()
-    assert spread < BRANCH_DELAY, f"branches did not overlap; spread={spread}s"
 
 
 async def test_failed_branch_triggers_compensation(store):
