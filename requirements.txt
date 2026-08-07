@@ -1,0 +1,36 @@
+# Agent Council Orchestrator - backend dependencies
+# Python 3.11+ (torch/sentence-transformers have no 3.13/3.14 wheels yet).
+
+# --- web layer ---
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+pydantic==2.10.4
+pydantic-settings==2.7.0
+python-multipart==0.0.20
+
+# --- outbound HTTP for provider adapters (block 2) ---
+httpx==0.28.1
+
+# --- the graded core: handoff schema validation (block 3) ---
+jsonschema==4.23.0
+
+# --- persistence: single source of truth is Supabase Postgres (block 1) ---
+supabase==2.11.0
+
+# --- security, written inline not retrofitted ---
+slowapi==0.1.9
+python-magic-bin==0.4.14; sys_platform == "win32"
+python-magic==0.4.27; sys_platform != "win32"
+PyJWT==2.10.1
+
+# --- honest metrics: local embeddings, zero cost (block 8) ---
+sentence-transformers==3.3.1
+
+# --- real benchmark data: SWE-bench Verified (block 7) ---
+datasets==3.2.0
+
+# --- dev / CI ---
+pytest==8.3.4
+pytest-asyncio==0.25.0
+ruff==0.8.6
+pip-audit==2.7.3

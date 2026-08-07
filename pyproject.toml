@@ -1,0 +1,22 @@
+[project]
+name = "aco"
+version = "0.1.0"
+description = "Agent Council Orchestrator - Unified Agent Form Orchestrator (AE-03)"
+requires-python = ">=3.11"
+license = { text = "Apache-2.0" }
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+exclude = [".venv", "frontend", "data", "migrations"]
+
+[tool.ruff.lint]
+# S = bandit security lint, on from block 0 rather than retrofitted.
+select = ["E", "F", "I", "B", "UP", "ASYNC", "S"]
+ignore = ["S101"]  # assert is the point in tests
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+addopts = "-q"
