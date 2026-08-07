@@ -21,8 +21,12 @@ services:
       # against Render's own docs: PYTHON_VERSION must be fully qualified.
       - key: PYTHON_VERSION
         value: 3.11.9
+      # backend/config.py's Settings.app_env is Literal["dev","test","prod"] -
+      # "production" is not a valid value and crashes Settings() at import
+      # time with a pydantic ValidationError. Confirmed from a real Render
+      # deploy log, not a guess.
       - key: APP_ENV
-        value: production
+        value: prod
       - key: LLM_PROVIDER
         value: ollama
       # https://ollama.com is Ollama Cloud's base URL - the adapter appends
