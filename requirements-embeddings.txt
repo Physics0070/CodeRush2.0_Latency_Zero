@@ -1,0 +1,19 @@
+# Optional: semantic metrics (marginal information gain, duplicate detection).
+#
+# Split out of requirements.txt because these two pull ~1GB and are served from
+# download.pytorch.org, which stalls or refuses connections on some networks -
+# including Hugging Face Spaces builders. A deploy must not hinge on it.
+#
+# Without these the app runs fully; `compute()` reports
+# `embeddings_available: false` and omits MIG and duplicate pairs rather than
+# guessing. See backend/metrics/metrics.py.
+#
+# CPU wheels only. The default PyPI linux wheel bundles CUDA (~2GB):
+#   pip install -r requirements-embeddings.txt \
+#       --extra-index-url https://download.pytorch.org/whl/cpu
+#
+# Not pinned to an exact version: the CPU index carries different maxima per
+# Python tag (cp311 linux stops at 2.6.0), so an exact pin that resolves on one
+# platform is unsatisfiable on another.
+torch>=2.6.0,<3
+sentence-transformers>=5.0,<6

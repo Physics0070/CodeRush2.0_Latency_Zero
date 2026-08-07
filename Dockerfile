@@ -29,11 +29,22 @@ ENV PYTHONUNBUFFERED=1 \
 
 WORKDIR /app
 
-COPY requirements.txt ./
-# CPU-only torch first: the cuda wheels are ~2GB and would blow the free-tier
-# build. Installing it up front means requirements.txt finds torch satisfied.
-RUN pip install --no-cache-dir torch==2.13.0 --index-url https://download.pytorch.org/whl/cpu \
- && pip install --no-cache-dir -r requirements.txt
+# Semantic metrics (MIG, duplicate detection) are opt-in. torch is ~1GB and is
+# served from download.pytorch.org, which refuses or stalls connections on some
+# networks and CI builders - a deploy should not fail for a reason unrelated to
+# this app. Without it the metrics report `embeddings_available: false` and omit
+# those two numbers; the chat, council, replay and everything else are
+# unaffected.
+#   docker build --build-arg WITH_EMBEDDINGS=1 -t aco .
+ARG WITH_EMBEDDINGS=0
+
+COPY requirements.txt requirements-embeddings.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
+RUN if [ "$WITH_EMBEDDINGS" = "1" ]; then \
+      pip install --no-cache-dir --retries 8 --timeout 60 \
+        -r requirements-embeddings.txt \
+        --extra-index-url https://download.pytorch.org/whl/cpu ; \
+    fi
 
 COPY --chown=app:app backend/ ./backend/
 COPY --chown=app:app migrations/ ./migrations/
@@ -41,9 +52,12 @@ COPY --chown=app:app --from=frontend /build/dist ./frontend/dist
 
 USER app
 
-# Bake the embedding model into the image so the first metrics request is not a
-# 90-second download on a cold Space.
-RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')"
+# Bake the embedding model in so the first metrics request is not a 90-second
+# download on a cold Space. Skipped when embeddings were not installed.
+ARG WITH_EMBEDDINGS
+RUN if [ "$WITH_EMBEDDINGS" = "1" ]; then \
+      python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')" ; \
+    fi
 
 # HF Spaces hardcodes 7860.
 EXPOSE 7860

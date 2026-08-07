@@ -28,11 +28,11 @@ python-magic==0.4.27; sys_platform != "win32"
 PyJWT==2.13.0
 
 # --- honest metrics: local embeddings, zero cost (block 8) ---
-# Pin torch explicitly so pip-audit can see it. Install the cpu build first to
-# avoid pulling ~2GB of cuda wheels (the Dockerfile and CI both do this):
-#   pip install torch==2.13.0 --index-url https://download.pytorch.org/whl/cpu
-torch==2.13.0
-sentence-transformers==5.7.0
+# torch and sentence-transformers live in requirements-embeddings.txt. They are
+# ~1GB and served from download.pytorch.org, which stalls on some networks, so
+# the core install must not depend on reaching it. Metrics degrade honestly
+# without them (`embeddings_available: false`) - everything else is unaffected.
+#   pip install -r requirements-embeddings.txt
 
 # --- real benchmark data: SWE-bench Verified (block 7) ---
 datasets==5.0.1

@@ -30,6 +30,20 @@ uvicorn backend.main:app --host 0.0.0.0 --port 7860
 
 This is exactly what the Docker image does, and what HF Spaces runs.
 
+Verified locally:
+
+```bash
+docker build -t aco .
+docker run -d --name aco-test -p 7861:7860 --env-file .env \
+  --add-host=host.docker.internal:host-gateway \
+  -e OLLAMA_BASE_URL=http://host.docker.internal:11434 aco:latest
+curl localhost:7861/health      # {"status":"ok","version":"0.1.0"}
+```
+
+`--add-host` is what lets the container reach an Ollama running on the host.
+Without it `ollama:*` models are unreachable from inside the container and only
+hosted providers answer — which is also the situation on HF Spaces.
+
 ### Hugging Face Spaces
 
 1. New Space → SDK **Docker** → hardware **CPU basic (free)**
@@ -47,11 +61,24 @@ changes. This is the same swap as demo step 8.
 Known issues:
 
 - **Cold start.** Hit the URL five minutes before demoing.
-- **Build time.** The torch wheel is the slow layer, and
-  `download.pytorch.org` can stall. If the build times out, drop `torch` and
-  `sentence-transformers` from `requirements.txt` and redeploy — every block
-  except metrics still works, and the app degrades honestly (see
-  `embeddings_available` in the metrics response).
+- **Semantic metrics are opt-in.** `torch` and `sentence-transformers` live in
+  `requirements-embeddings.txt`, not `requirements.txt`. They are ~1GB and are
+  served from `download.pytorch.org`, which stalls or refuses connections on
+  some networks — measured here as zero bytes in 120s. The CPU index also
+  carries no cp311 linux wheel above 2.6.0, so an exact pin that resolves on
+  Windows is unsatisfiable inside the image.
+
+  The default build omits them and finishes in about two minutes:
+
+  ```bash
+  docker build -t aco .                                # 863 MB, ~2 min
+  docker build --build-arg WITH_EMBEDDINGS=1 -t aco .  # adds MIG + duplicates
+  ```
+
+  Without them the app is fully functional. The metrics response reports
+  `embeddings_available: false` and omits marginal information gain and
+  duplicate pairs rather than guessing them. Chat, council, replay, permissions
+  and every timing and cost number are unaffected.
 
 ---
 

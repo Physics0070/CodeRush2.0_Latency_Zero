@@ -64,8 +64,12 @@ cd CodeRush2.0_Latency_Zero
 # 1. Backend
 python3.11 -m venv .venv
 source .venv/bin/activate            # Windows: .venv\Scripts\activate
-pip install torch --index-url https://download.pytorch.org/whl/cpu
 pip install -r requirements.txt
+
+# Optional: semantic metrics (marginal information gain, duplicate detection).
+# ~1GB. Skip it and the app runs fully, reporting embeddings_available: false.
+pip install -r requirements-embeddings.txt \
+    --extra-index-url https://download.pytorch.org/whl/cpu
 
 # 2. Local models (free, no API key)
 ollama pull llama3.2:3b
@@ -102,18 +106,26 @@ Always install with `.venv/Scripts/python -m pip install …` rather than bare
 `pip`, so the interpreter and the target are the same by construction.
 
 **The torch install hangs.** `download.pytorch.org` is slow or blocked on some
-networks — we hit a 50-minute stall with zero bytes transferred. Symptom: pip
-sits at "Collecting torch" with no progress bar movement.
+networks — we measured zero bytes in 120 seconds, and separately a 50-minute
+stall. Symptom: pip sits at "Collecting torch" with no progress bar movement.
+
+This is why torch is **not** in `requirements.txt`. It is optional:
 
 ```bash
 # add explicit timeouts so pip gives up and retries instead of hanging
-pip install --retries 8 --timeout 45 torch --index-url https://download.pytorch.org/whl/cpu
+pip install --retries 8 --timeout 60 -r requirements-embeddings.txt \
+    --extra-index-url https://download.pytorch.org/whl/cpu
 ```
 
-Torch is needed **only** by the metrics module (Block 8). Everything else — the
-event log, typed handoffs, the engine, the council, permissions, replay, the UI
-— runs without it. If you are short on time, skip it and the app still works;
-only `/api/runs/{id}/metrics` and `/api/marginal-value` will fail.
+Torch is needed **only** for the two semantic metrics. Everything else — the
+chat, the event log, typed handoffs, the engine, the council, permissions,
+replay, the UI, and every timing and cost number — runs without it. Skip it and
+`/api/runs/{id}/metrics` still returns, with `embeddings_available: false` and
+marginal information gain and duplicate pairs omitted rather than guessed.
+
+Note the CPU index carries no cp311 linux wheel above 2.6.0, so
+`requirements-embeddings.txt` uses a range rather than an exact pin — a pin
+that resolves on Windows can be unsatisfiable in a linux container.
 
 **`ModuleNotFoundError: No module named 'backend'`.** Run from the repository
 root, not from inside `backend/`. `pytest` reads `pythonpath = ["."]` from
