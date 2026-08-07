@@ -216,3 +216,20 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# ---------------------------------------------------------------------------
+# Agent Council Orchestrator - project specific
+# ---------------------------------------------------------------------------
+node_modules/
+frontend/dist/
+frontend/.vite/
+*.tsbuildinfo
+
+# Local virtualenv (this project pins python 3.11)
+.venv/
+
+# Pinned demo repo + benchmark caches. Real data, fetched not committed.
+data/
+
+# HF Spaces disk is ephemeral - nothing here is ever a source of truth.
+.cache/
