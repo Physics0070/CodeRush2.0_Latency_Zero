@@ -32,7 +32,21 @@ _TASKS: dict[str, asyncio.Task] = {}
 
 
 async def _default_models() -> list[str]:
-    """Prefer two distinct local models so the council is a real council."""
+    """Remote models first, then local ones for provider diversity.
+
+    Ordering matters twice over. `models[0]` answers, and a hosted model both
+    replies faster and costs the user's machine no RAM - a local 7B sits at
+    ~5GB resident for the whole session. And the old order appended groq after
+    the local list before slicing to three, so a configured groq key was never
+    actually reachable.
+
+    Local models stay in the list: a council whose members share a provider
+    shares its blind spots, and Ollama is the zero-cost fallback when no key is
+    configured.
+    """
+    remote = (
+        ["groq:llama-3.3-70b-versatile"] if "groq" in configured_providers() else []
+    )
     try:
         local = [
             f"ollama:{m}"
@@ -41,9 +55,7 @@ async def _default_models() -> list[str]:
         ]
     except Exception:
         local = []
-    if "groq" in configured_providers():
-        local.append("groq:llama-3.3-70b-versatile")
-    return local[:3] or ["ollama:llama3.2:3b"]
+    return (remote + local)[:3] or ["ollama:llama3.2:3b"]
 
 
 @router.get("/models")
