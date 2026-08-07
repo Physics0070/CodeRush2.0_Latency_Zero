@@ -233,3 +233,10 @@ data/
 
 # HF Spaces disk is ephemeral - nothing here is ever a source of truth.
 .cache/
+
+# Assistant scratch files and personal workflow notes. These get dropped into
+# the working directory by editors and tooling; none of them belong in a repo
+# that is submitted for judging.
+*_notes.md
+scratch*.md
+AGENTS.md

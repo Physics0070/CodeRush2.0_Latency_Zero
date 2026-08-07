@@ -3,19 +3,31 @@
 **CodeRush 2.0 · Problem statement AE-03 — Unified Agent Form Orchestrator**
 Team **Latency Zero** · VIT Pune
 
-A control room for teams of AI agents. You type one goal in plain English. The
-system asks clarifying questions, asks permission, designs an agent team as a
-visual graph, shows it for approval, executes it parallel-first, streams live
-state, and replays any past run with a provably identical result.
+**Ask it anything and it answers, like any assistant. Then it shows you what
+the answer cost.**
 
-Human input is three things: the goal, answers to clarifying questions, and one
-approve click. Everything else is automatic.
+Simple questions go straight to one model and stream back in about two seconds.
+Harder ones are split across specialists that run in parallel, and the answers
+are merged into one reply. You get prose, not a findings table — and under every
+answer, the measured truth about how it was produced.
+
+For heavier work there is a second surface: type a goal, and the system asks
+clarifying questions, asks permission, designs an agent team as a visual graph,
+shows it for approval, executes it parallel-first, streams live state, and
+replays any past run with a provably identical result.
 
 Runs at **₹0** — local models via Ollama, Supabase free tier, local embeddings.
 
 ---
 
 ## What makes it different
+
+**0. It decides how hard your question is, and spends accordingly.**
+A council of four is not free. The router reads what you actually asked and
+picks the cheapest shape that answers it well — most messages skip the council
+entirely. It also derives the specialists *from your question*: ask about
+locking in a ledger and you get `locking_strategies` and `ledger_architecture`,
+not a generic security/quality/docs template.
 
 **1. Agents pass typed forms, not chat messages.**
 Every edge in the graph carries a JSON Schema. A wrong shape is rejected, the
@@ -42,11 +54,22 @@ report are all *reads* of that table. No state change happens anywhere without
 an event row.
 
 ```
-goal ─▶ clarify ─▶ approval ─▶ fanout ─┬─▶ security ─┐
-                                       ├─▶ quality  ─┼─▶ join ─▶ verify ─▶ report
-                                       └─▶ docs     ─┘
-                                       (concurrent)      (council)
+                        ┌─ simple ──▶ one model ─────────────────▶ answer
+question ─▶ router ─────┤
+                        └─ moderate/deep ─▶ fanout ─┬─▶ specialist ─┐
+                                                    ├─▶ specialist ─┼─▶ merge ─▶ answer
+                                                    └─▶ specialist ─┘
+                                                      (concurrent)
+
+goal ─▶ clarify ─▶ approval ─▶ fanout ─┬─▶ analyst ─┐
+                                       ├─▶ analyst ─┼─▶ join ─▶ verify ─▶ report
+                                       └─▶ analyst ─┘
+                                        (concurrent)     (council)
 ```
+
+The specialists are named by the router from your question, not from a fixed
+list. Both paths write to the same event log, so a chat turn is as replayable
+and as measurable as a full orchestrated run.
 
 Full detail: [docs/architecture.md](docs/architecture.md).
 
@@ -161,6 +184,22 @@ bundle.
 ---
 
 ## Running the demo
+
+### Chat (the default surface)
+
+1. Ask *"What is a race condition?"* → answers in ~2s, routed `simple`,
+   no council convened
+2. Ask *"Compare optimistic and pessimistic locking for a high-write ledger"* →
+   routed `moderate`, two specialists named from the question run in parallel,
+   answers merge into one reply
+3. Click **benchmarks** under either answer → route, timings, tokens, cost, and
+   the measured overlap between specialists
+
+The second question is the one to show: the system reports when its own
+specialists said the same thing, which is a claim nobody else's demo makes
+about itself.
+
+### Orchestrator (the `orchestrator` tab)
 
 1. Type: *"Audit this repository and produce a prioritized remediation report."*
 2. Answer the clarifying questions → approve
