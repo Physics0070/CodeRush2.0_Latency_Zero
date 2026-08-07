@@ -16,7 +16,8 @@ clarifying questions, asks permission, designs an agent team as a visual graph,
 shows it for approval, executes it parallel-first, streams live state, and
 replays any past run with a provably identical result.
 
-Runs at **₹0** — local models via Ollama, Supabase free tier, local embeddings.
+Runs at **₹0** — Groq/Gemini free tiers, Supabase free tier; Ollama remains
+available for local development but is no longer the deployed default.
 
 ---
 

@@ -275,22 +275,14 @@ export function ChatPanel({ models }: { models: string[] }) {
           patch(index, (t) => ({ ...t, error: detail, done: true, status: undefined }))
           setBusy(false)
         },
+        // Settle on the stream closing rather than on `benchmarks` arriving:
+        // a turn that ends without them must still release the composer.
+        onDone: () => {
+          patch(index, (t) => ({ ...t, done: true, status: undefined }))
+          setBusy(false)
+        },
       },
     )
-
-    // The stream closes after `benchmarks`; mark the turn done when it settles.
-    const poll = setInterval(() => {
-      setTurns((prev) => {
-        const t = prev[index]
-        if (!t || t.done) { clearInterval(poll); return prev }
-        if (t.bench) {
-          clearInterval(poll)
-          setBusy(false)
-          return prev.map((x, j) => (j === index ? { ...x, done: true, status: undefined } : x))
-        }
-        return prev
-      })
-    }, 120)
   }, [busy, models, patch, turns])
 
   const stop = () => {

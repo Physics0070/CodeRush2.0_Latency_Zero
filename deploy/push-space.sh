@@ -55,7 +55,8 @@ cat <<EOF
     SUPABASE_URL
     SUPABASE_SERVICE_KEY
     SECRET_KEY
-    GROQ_API_KEY          <- required; Ollama cannot run on a Space
+    GROQ_API_KEY          <- at least one of these two is required; the app
+    GEMINI_API_KEY        <- has no local-model fallback on a Space
 
   Then watch the build. When it is green:
     curl https://${USER}-${SPACE}.hf.space/health

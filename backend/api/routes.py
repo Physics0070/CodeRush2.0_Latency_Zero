@@ -20,8 +20,7 @@ from backend.council import clarifying_questions, compile_graph, permission_prom
 from backend.engine import Executor, GraphSpec
 from backend.events import EventStore, EventType
 from backend.permissions.red_agent import red_agent_graph
-from backend.providers.ollama import OllamaAdapter
-from backend.providers.secret_broker import configured_providers, get_handle
+from backend.providers.secret_broker import configured_providers
 
 log = logging.getLogger("aco.api")
 router = APIRouter(prefix="/api")
@@ -32,30 +31,44 @@ _TASKS: dict[str, asyncio.Task] = {}
 
 
 async def _default_models() -> list[str]:
-    """Remote models first, then local ones for provider diversity.
+    """Hosted models only, fastest first.
 
-    Ordering matters twice over. `models[0]` answers, and a hosted model both
-    replies faster and costs the user's machine no RAM - a local 7B sits at
-    ~5GB resident for the whole session. And the old order appended groq after
-    the local list before slicing to three, so a configured groq key was never
-    actually reachable.
+    Local inference is no longer on the default path. An Ollama model in a
+    memory-capped container generates at well under one token per second, which
+    is slower than the specialist timeout and made council answers look hung -
+    the user watches an empty screen, which is indistinguishable from a broken
+    app. A Space cannot run Ollama at all, so dropping it also makes the
+    deployed instance and a local one agree on which models exist.
 
-    Local models stay in the list: a council whose members share a provider
-    shares its blind spots, and Ollama is the zero-cost fallback when no key is
-    configured.
+    `models[0]` answers; the rest widen the council. Provider diversity now
+    comes from running Groq and Gemini side by side rather than from mixing in
+    a local model.
     """
-    remote = (
-        ["groq:llama-3.3-70b-versatile"] if "groq" in configured_providers() else []
-    )
-    try:
-        local = [
-            f"ollama:{m}"
-            for m in await OllamaAdapter(get_handle("ollama")).list_models()
-            if not m.endswith(":cloud")
-        ]
-    except Exception:
-        local = []
-    return (remote + local)[:3] or ["ollama:llama3.2:3b"]
+    configured = configured_providers()
+    models: list[str] = []
+    if "groq" in configured:
+        models.append("groq:llama-3.3-70b-versatile")
+    if "gemini" in configured:
+        models.append("gemini:gemini-2.0-flash")
+    return models[:3]
+
+
+NO_MODELS = (
+    "No model provider is configured. Set GROQ_API_KEY or GEMINI_API_KEY "
+    "(in the Space UI these go in Settings -> Variables and secrets, as secrets)."
+)
+
+
+def _require_models(models: list[str]) -> list[str]:
+    """Fail loudly and early rather than deep inside a turn.
+
+    With no hosted key there is nothing to answer with, and the old local
+    fallback is gone. A 503 naming the missing variable is far easier to act on
+    than an IndexError on `models[0]` three frames down.
+    """
+    if not models:
+        raise HTTPException(status_code=503, detail=NO_MODELS)
+    return models
 
 
 @router.get("/models")
@@ -73,7 +86,7 @@ async def chat(req: ChatRequest, request: Request) -> EventSourceResponse:
     """
     from backend.chat import run_turn
 
-    models_ = req.models or await _default_models()
+    models_ = _require_models(req.models or await _default_models())
     history = [m.model_dump() for m in req.history]
 
     async def gen():
@@ -110,7 +123,7 @@ async def chat_plan(req: ChatRequest) -> dict:
     """
     from backend.chat import plan_for
 
-    models_ = req.models or await _default_models()
+    models_ = _require_models(req.models or await _default_models())
     plan = await plan_for(req.message, models_[0] if models_ else None)
     return {
         **plan.model_dump(),
@@ -128,7 +141,7 @@ async def clarify(req: GoalRequest) -> dict:
     """
     from backend.chat import plan_for
 
-    models_ = req.models or await _default_models()
+    models_ = _require_models(req.models or await _default_models())
     plan = await plan_for(req.goal, models_[0] if models_ else None)
 
     questions = plan.clarifying_questions or clarifying_questions(req.goal)
@@ -145,7 +158,7 @@ async def clarify(req: GoalRequest) -> dict:
 @router.post("/compile")
 async def compile_endpoint(req: CompileRequest) -> dict:
     """Council designs the graph. Not executed until /runs is called."""
-    models_ = req.models or await _default_models()
+    models_ = _require_models(req.models or await _default_models())
     async with EventStore() as store:
         run_id = str(uuid.uuid4())
         await store.create_run(run_id, req.goal, "pending", req.seed, {}, "pending")
@@ -344,7 +357,7 @@ async def replay(run_id: str) -> dict:
 async def marginal_value(req: MarginalValueRequest) -> dict:
     from backend.metrics import marginal_value_report
 
-    models_ = req.models or await _default_models()
+    models_ = _require_models(req.models or await _default_models())
     async with EventStore() as store:
         report = await marginal_value_report(
             store, req.goal, models_, depths=tuple(req.depths), seed=req.seed

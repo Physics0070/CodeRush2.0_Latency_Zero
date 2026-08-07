@@ -29,9 +29,12 @@ Source: https://github.com/Physics0070/CodeRush2.0_Latency_Zero
 
 ## Notes on this deployment
 
-- **Ollama is not available on a Space.** There is no way to run `ollama serve`
-  plus multi-GB model files on the free tier, so this instance answers with
-  Groq. The model string is per agent, so nothing else changes.
+- **Hosted models only.** This instance answers with Groq and, if configured,
+  Gemini Flash - no local inference. There is no way to run `ollama serve` plus
+  multi-GB model files on the free tier, and a local model was already too slow
+  to serve council answers reliably even in a resourced container, so it is not
+  the fallback here either. At least one of `GROQ_API_KEY` / `GEMINI_API_KEY`
+  must be set or the chat endpoint returns a 503 naming the missing variable.
 - **Semantic metrics are off.** `torch` is not installed in the default image
   (~1GB, and `download.pytorch.org` stalls on many builders). The metrics
   endpoint reports `embeddings_available: false` and omits marginal information

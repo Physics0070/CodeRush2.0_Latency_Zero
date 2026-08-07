@@ -205,6 +205,8 @@ export interface ChatHandlers {
   onToken?: (t: string) => void
   onBenchmarks?: (b: Benchmarks) => void
   onError?: (detail: string) => void
+  /** Fires once when the stream closes, however it closed. */
+  onDone?: () => void
 }
 
 /**
@@ -236,40 +238,53 @@ export function streamChat(
       const decoder = new TextDecoder()
       let buf = ''
 
+      const dispatch = (frame: string) => {
+        let name = 'message'
+        const dataLines: string[] = []
+        for (const line of frame.split('\n')) {
+          if (line.startsWith('event:')) name = line.slice(6).trim()
+          else if (line.startsWith('data:')) dataLines.push(line.slice(5).trimStart())
+        }
+        if (!dataLines.length) return
+
+        let data: unknown
+        try { data = JSON.parse(dataLines.join('\n')) } catch { return }
+
+        switch (name) {
+          case 'plan': h.onPlan?.(data as PlanInfo); break
+          case 'status': h.onStatus?.((data as { stage: string }).stage); break
+          case 'specialist': h.onSpecialist?.(data as SpecialistInfo); break
+          case 'token': h.onToken?.(data as string); break
+          case 'benchmarks': h.onBenchmarks?.(data as Benchmarks); break
+          case 'error': h.onError?.((data as { detail: string }).detail); break
+        }
+      }
+
       for (;;) {
         const { done, value } = await reader.read()
         if (done) break
-        buf += decoder.decode(value, { stream: true })
+
+        // The server terminates SSE lines with CRLF, so splitting raw on '\n\n'
+        // never matches - the \r sits between the two newlines and every frame
+        // stays stuck in the buffer. Normalise first, then split. A chunk can
+        // end mid-CRLF; the lone trailing \r is simply carried to the next pass.
+        buf = (buf + decoder.decode(value, { stream: true })).replace(/\r\n/g, '\n')
 
         // SSE frames are separated by a blank line. Keep the trailing partial
         // frame in the buffer until its terminator arrives.
         const frames = buf.split('\n\n')
         buf = frames.pop() ?? ''
 
-        for (const frame of frames) {
-          let name = 'message'
-          const dataLines: string[] = []
-          for (const line of frame.split('\n')) {
-            if (line.startsWith('event:')) name = line.slice(6).trim()
-            else if (line.startsWith('data:')) dataLines.push(line.slice(5).trimStart())
-          }
-          if (!dataLines.length) continue
-
-          let data: unknown
-          try { data = JSON.parse(dataLines.join('\n')) } catch { continue }
-
-          switch (name) {
-            case 'plan': h.onPlan?.(data as PlanInfo); break
-            case 'status': h.onStatus?.((data as { stage: string }).stage); break
-            case 'specialist': h.onSpecialist?.(data as SpecialistInfo); break
-            case 'token': h.onToken?.(data as string); break
-            case 'benchmarks': h.onBenchmarks?.(data as Benchmarks); break
-            case 'error': h.onError?.((data as { detail: string }).detail); break
-          }
-        }
+        for (const frame of frames) dispatch(frame)
       }
+
+      // A final frame may arrive without its blank-line terminator.
+      buf = (buf + decoder.decode()).replace(/\r\n/g, '\n')
+      if (buf.trim()) dispatch(buf)
+      h.onDone?.()
     } catch (e) {
       if ((e as Error).name !== 'AbortError') h.onError?.((e as Error).message)
+      h.onDone?.()
     }
   })()
 

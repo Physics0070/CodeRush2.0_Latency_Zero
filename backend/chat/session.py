@@ -27,6 +27,35 @@ from backend.events import EventStore, EventType
 
 log = logging.getLogger("aco.chat")
 
+# A specialist that has not landed by now is a failed branch, not a reason to
+# hold the whole turn. The Ollama client's own timeout is 300s, so without this
+# one slow local model stalls the answer for five minutes and the user watches
+# an empty screen - which is indistinguishable from the app being broken.
+SPECIALIST_TIMEOUT_S = 45.0
+
+
+def specialist_models(models: list[str]) -> list[str]:
+    """The models the fanout is allowed to use.
+
+    Round-robining across the whole list hands specialists local Ollama models,
+    which generate at well under one token per second in a memory-capped
+    container - far slower than any timeout worth waiting for. When a hosted
+    model is configured the council runs on hosted models only. With no key at
+    all the local list is still the zero-cost fallback, as before.
+    """
+    hosted = [m for m in models if not m.startswith("ollama:")]
+    return hosted or models
+
+
+async def _bounded(coro, aspect_id: str) -> dict:
+    """Run one specialist under the timeout, degrading instead of raising."""
+    try:
+        return await asyncio.wait_for(coro, SPECIALIST_TIMEOUT_S)
+    except TimeoutError:
+        log.warning("specialist %s timed out after %ss", aspect_id, SPECIALIST_TIMEOUT_S)
+        return {"aspect": aspect_id, "points": [],
+                "error": f"timed out after {int(SPECIALIST_TIMEOUT_S)}s"}
+
 
 def chat_graph(plan: Plan, models: list[str]) -> GraphSpec:
     """The shape this turn will actually run, as a real GraphSpec.
@@ -170,9 +199,15 @@ async def run_turn(
                                    payload={"role": s.role})
 
         fan_t0 = time.perf_counter()
-        # One gather: every specialist starts before any of them finishes.
+        # One gather: every specialist starts before any of them finishes, and
+        # each is bounded so the slowest cannot decide how long the turn takes.
+        fan_models = specialist_models(models)
         contributions = await asyncio.gather(*[
-            contribute(question, s.id, s.role, models[i % len(models)], seed=seed)
+            _bounded(
+                contribute(question, s.id, s.role,
+                           fan_models[i % len(fan_models)], seed=seed),
+                s.id,
+            )
             for i, s in enumerate(plan.specialists)
         ])
         fanout_ms = int((time.perf_counter() - fan_t0) * 1000)
