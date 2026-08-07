@@ -34,6 +34,7 @@ class GroqAdapter(ProviderAdapter):
         seed: int | None = None,
         max_tokens: int | None = None,
         tools: list[dict] | None = None,
+        json_mode: bool = False,
     ) -> Completion:
         if not self.handle.configured:
             raise ProviderError("groq is not configured (no key)")
@@ -45,6 +46,10 @@ class GroqAdapter(ProviderAdapter):
             body["max_tokens"] = max_tokens
         if tools:
             body["tools"] = tools
+        # Groq rejects response_format alongside tools, and tool calls are
+        # already JSON, so json_mode only applies to plain completions.
+        if json_mode and not tools:
+            body["response_format"] = {"type": "json_object"}
 
         async def call() -> Completion:
             started = time.perf_counter()

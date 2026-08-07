@@ -41,6 +41,7 @@ class GeminiAdapter(ProviderAdapter):
         seed: int | None = None,
         max_tokens: int | None = None,
         tools: list[dict] | None = None,
+        json_mode: bool = False,
     ) -> Completion:
         if not self.handle.configured:
             raise ProviderError("gemini is not configured (no key)")
@@ -51,6 +52,8 @@ class GeminiAdapter(ProviderAdapter):
             gen["maxOutputTokens"] = max_tokens
         if seed is not None:
             gen["seed"] = seed
+        if json_mode and not tools:
+            gen["responseMimeType"] = "application/json"
         body: dict = {"contents": contents, "generationConfig": gen}
         if system:
             body["systemInstruction"] = {"parts": [{"text": system}]}

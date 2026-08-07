@@ -51,6 +51,7 @@ async def complete(
     seed: int | None = None,
     max_tokens: int | None = None,
     tools: list[dict] | None = None,
+    json_mode: bool = False,
     store: EventStore | None = None,
     run_id: str | None = None,
     node_id: str | None = None,
@@ -71,6 +72,7 @@ async def complete(
             seed=seed,
             max_tokens=max_tokens,
             tools=tools,
+            json_mode=json_mode,
         )
     except ProviderError as primary_error:
         if not fallback_model:
@@ -109,6 +111,7 @@ async def complete(
             seed=seed,
             max_tokens=max_tokens,
             tools=tools,
+            json_mode=json_mode,
         )
         result.used_fallback = True
 

@@ -60,6 +60,7 @@ class ProviderAdapter(ABC):
         seed: int | None = None,
         max_tokens: int | None = None,
         tools: list[dict] | None = None,
+        json_mode: bool = False,
     ) -> Completion: ...
 
     @abstractmethod

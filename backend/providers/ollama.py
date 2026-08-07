@@ -25,6 +25,7 @@ class OllamaAdapter(ProviderAdapter):
         seed: int | None = None,
         max_tokens: int | None = None,
         tools: list[dict] | None = None,
+        json_mode: bool = False,
     ) -> Completion:
         options: dict = {"temperature": temperature}
         if seed is not None:
@@ -35,6 +36,11 @@ class OllamaAdapter(ProviderAdapter):
         body: dict = {"model": model, "messages": messages, "stream": False, "options": options}
         if tools:
             body["tools"] = tools
+        if json_mode:
+            # Grammar-constrained decoding. A 3B model asked politely for JSON
+            # returns prose about half the time; asked this way it cannot emit
+            # anything else.
+            body["format"] = "json"
 
         async def call() -> Completion:
             started = time.perf_counter()
