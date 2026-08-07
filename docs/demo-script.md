@@ -1,27 +1,75 @@
 # Demo script
 
-10 minutes of demo, 5 minutes of Q&A. Rehearse verbatim. Steps 7 and 10 are the
-two nobody else will have — protect them if time runs short.
+10 minutes of demo, 5 minutes of Q&A. Rehearse verbatim. Steps **0**, 7 and 10
+are the three nobody else will have — protect them if time runs short.
 
-**Before you start:** `ollama serve` running, `ollama list` shows the models,
-backend up on 7860, browser already open. Hit the URL five minutes early so
-nothing is cold.
+**Before you start:**
+
+- `ollama serve` running, `ollama list` shows the models
+- backend up on 7860, browser already open on the **chat** tab
+- `GROQ_API_KEY` set — step 0 depends on the answer feeling instant. Measured
+  on the same question: **2.6s total on Groq, 8.9–25s on a local 3B**, first
+  token 1.9s vs 6.9s
+- ask one throwaway question first so nothing is cold
+
+**If the network dies mid-demo:** unset `GROQ_API_KEY` and restart. It falls
+back to local Ollama models automatically — verified: `/api/models` drops to
+`["ollama:…"]` and answers still stream, just slower. No code change. Say so out
+loud, provider portability is a graded requirement.
 
 ---
 
 ## The 60-second frame
 
 > "Most multi-agent demos are a prompt chain with a nice diagram. Agents write
-> prose to each other and hope the next one understands.
+> prose to each other and hope the next one understands. And most of them can
+> only do the one task they were built for.
 >
-> We built the control room instead. One goal in, a typed agent graph out, and
-> three things nobody else is showing: agents that pass **validated forms**
+> Ours answers questions like any assistant — then shows you what the answer
+> cost. Underneath it's a control room: one goal in, a typed agent graph out,
+> and three things nobody else is showing: agents that pass **validated forms**
 > instead of chat messages, a **council** that peer-reviews itself anonymously,
 > and a system that **tells you when it was overkill**."
 
 ---
 
 ## Step-by-step
+
+### 0 · It answers, and it right-sizes itself *(90s)*
+
+Open on the **chat** tab. Type: *"What is a race condition?"*
+
+Answer streams back in about two seconds.
+
+> "Normal question, normal answer. Note what did **not** happen — no council, no
+> four agents, no ceremony. The router read the question and decided one model
+> was enough. Most orchestrators would have spent four model calls here."
+
+Point at the line under the answer: `simple · answered directly · ~2s`.
+
+Now type: *"Compare optimistic and pessimistic locking, and tell me which suits
+a high-write ledger."*
+
+Two specialist chips appear **named after the question** — `locking_strategies`
+and `ledger_architecture` — then the merged answer streams.
+
+> "Same box, different shape. This one earned a council, so it got two
+> specialists running in parallel. And notice their names: those came from the
+> question. Ask about locking and you get locking specialists. There is no fixed
+> list of agents in this system."
+
+Click **benchmarks** under the answer.
+
+> "Every number here is measured for that turn, not estimated. Route, planning
+> time, first token, parallel efficiency, tokens, cost.
+>
+> And this one — " *(point at the overlap row)* " — is the uncomfortable one.
+> Those two specialists produced 89% identical content. The system is telling
+> you its own council was wider than the question needed. **We ship the metric
+> that makes us look bad**, because a system that can't tell you when it wasted
+> your money isn't measuring anything."
+
+That last line is the strongest thing in the demo. Do not rush it.
 
 ### 1–2 · Goal → clarify → permission *(60s)*
 
