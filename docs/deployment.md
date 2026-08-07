@@ -17,6 +17,50 @@ So there are two supported shapes.
 
 ---
 
+## Option 0 — everything in Docker, memory bounded (best on a laptop)
+
+Use this when the machine is short on RAM. `docker compose up` runs the app
+*and* Ollama as containers, so the models live in Docker's allocation instead
+of the host's.
+
+```bash
+docker compose up -d --build
+open http://localhost:7860
+```
+
+Stop any host Ollama first, or both daemons fight over the same model files:
+
+```bash
+taskkill /IM ollama.exe /F     # Windows
+pkill ollama                   # macOS / Linux
+```
+
+Measured on a 15.4GB laptop: the host Ollama held **2.47GB resident** and
+stopping it returned **2.5GB**. The same inference then ran inside the
+container with host memory unchanged and no `ollama` process on the host at
+all. Ollama is capped at 5GB and the app at 1.5GB, so neither can grow into the
+rest of the machine.
+
+The host's model directory is mounted rather than re-pulled — 9.8GB of existing
+models appear in the container immediately. Port 11434 is still published, so
+the test suite and the `ollama` CLI keep working against the container.
+
+**The tradeoff, measured.** Docker Desktop on Windows gives containers no GPU
+and reads the models over a bind mount, so local inference is markedly slower
+inside than out: first token **53s in-container vs ~7s on the host** for
+`llama3.2:3b`. Groq is the default first model precisely because it sidesteps
+both problems — 2.6s and no local RAM at all. Treat containerised Ollama as the
+offline fallback, not the fast path.
+
+| Knob | Default | Effect |
+|---|---|---|
+| `ACO_PORT` | 7860 | Host port for the app |
+| `OLLAMA_PORT` | 11434 | Host port for Ollama |
+| `OLLAMA_MODELS_DIR` | `$USERPROFILE/.ollama` | Where models are mounted from |
+| `WITH_EMBEDDINGS` | 0 | Set to 1 for MIG and duplicate detection |
+
+---
+
 ## Option A — single origin (simplest, and what the demo uses)
 
 FastAPI serves the built frontend and the API from one process on port 7860.

@@ -1,0 +1,82 @@
+# Everything inside Docker, with the memory bounded.
+#
+# The point of this file is where the models live. Running `ollama serve` on the
+# host and pointing the container at host.docker.internal puts every loaded
+# model in the host's RAM - measured at 2.5GB resident for one 3B model, on a
+# 15GB laptop with 2.3GB free. Containerising the app alone does not change
+# that, because the app is not what is heavy.
+#
+# Here Ollama runs as a service with a hard memory limit, so the models live in
+# Docker's allocation and cannot grow into the rest of the machine.
+#
+#   docker compose up -d --build
+#   docker compose logs -f aco
+#   docker compose down
+#
+# Stop the host Ollama first, or the two fight over the same model files:
+#   Windows: taskkill /IM ollama.exe /F
+#   macOS/Linux: pkill ollama
+
+services:
+  ollama:
+    image: ollama/ollama:latest
+    container_name: aco-ollama
+    restart: unless-stopped
+    # The host's model directory, mounted rather than re-pulled - 9.8GB of
+    # models are already on disk and downloading them again would cost an hour.
+    volumes:
+      - "${OLLAMA_MODELS_DIR:-${USERPROFILE:-${HOME}}/.ollama}:/root/.ollama"
+    environment:
+      # Two models resident at once: enough for a real council in parallel,
+      # bounded enough that a 3B and a 7B cannot both sit in memory alongside a
+      # third. Without this the council can pin ~7GB.
+      OLLAMA_MAX_LOADED_MODELS: "2"
+      # Release memory a few minutes after a burst instead of holding it for
+      # the whole session.
+      OLLAMA_KEEP_ALIVE: "5m"
+      OLLAMA_NUM_PARALLEL: "2"
+    # The hard bound. Docker Desktop allocates 7.5GB total here, so this leaves
+    # room for the app alongside it.
+    mem_limit: 5g
+    memswap_limit: 5g
+    healthcheck:
+      test: ["CMD-SHELL", "ollama list >/dev/null 2>&1 || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    # Published on the usual port so the host keeps working normally: the test
+    # suite, `ollama` on the command line and any local script all reach this
+    # container instead of a host install. Stopping the host daemon is what
+    # frees the RAM; leaving the port unbound would just break those tools.
+    ports:
+      - "${OLLAMA_PORT:-11434}:11434"
+
+  aco:
+    build:
+      context: .
+      args:
+        # Semantic metrics are ~1GB of torch and download.pytorch.org stalls on
+        # many networks. Set to 1 when you want MIG and duplicate detection.
+        WITH_EMBEDDINGS: "${WITH_EMBEDDINGS:-0}"
+    container_name: aco-app
+    restart: unless-stopped
+    ports:
+      - "${ACO_PORT:-7860}:7860"
+    env_file:
+      - .env
+    environment:
+      # Service name, not host.docker.internal - the whole point is that the
+      # models are no longer on the host.
+      OLLAMA_BASE_URL: "http://ollama:11434"
+      GROQ_API_KEY: "${GROQ_API_KEY:-}"
+    mem_limit: 1500m
+    depends_on:
+      ollama:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:7860/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
