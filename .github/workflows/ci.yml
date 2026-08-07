@@ -23,7 +23,7 @@ jobs:
 
       - name: Install
         run: |
-          pip install torch==2.5.1 --index-url https://download.pytorch.org/whl/cpu
+          pip install torch==2.13.0 --index-url https://download.pytorch.org/whl/cpu
           pip install -r requirements.txt
 
       - name: Lint
@@ -32,8 +32,11 @@ jobs:
       - name: Test
         run: pytest -v
 
+      # Audits the declared requirements rather than the environment: the
+      # installed torch is a `+cpu` local build that is absent from PyPI, and
+      # --strict fails on anything it cannot look up.
       - name: Dependency audit
-        run: pip-audit --strict --desc
+        run: pip-audit -r requirements.txt --strict --desc
 
   frontend:
     runs-on: ubuntu-latest

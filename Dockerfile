@@ -30,8 +30,9 @@ ENV PYTHONUNBUFFERED=1 \
 WORKDIR /app
 
 COPY requirements.txt ./
-# CPU-only torch: the GPU wheels are ~2GB and would blow the free-tier build.
-RUN pip install --no-cache-dir torch==2.5.1 --index-url https://download.pytorch.org/whl/cpu \
+# CPU-only torch first: the cuda wheels are ~2GB and would blow the free-tier
+# build. Installing it up front means requirements.txt finds torch satisfied.
+RUN pip install --no-cache-dir torch==2.13.0 --index-url https://download.pytorch.org/whl/cpu \
  && pip install --no-cache-dir -r requirements.txt
 
 COPY --chown=app:app backend/ ./backend/
