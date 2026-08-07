@@ -21,11 +21,31 @@ log = logging.getLogger("aco.metrics")
 DUPLICATE_THRESHOLD = 0.85
 
 
+class EmbeddingsUnavailable(RuntimeError):
+    """sentence-transformers is not installed. Every other capability still works."""
+
+
+def embeddings_available() -> bool:
+    try:
+        import sentence_transformers  # noqa: F401
+    except ImportError:
+        return False
+    return True
+
+
 @lru_cache(maxsize=1)
 def _model():
     """Loaded once, lazily: importing sentence-transformers costs seconds and
     most requests never touch metrics."""
-    from sentence_transformers import SentenceTransformer
+    try:
+        from sentence_transformers import SentenceTransformer
+    except ImportError as e:
+        raise EmbeddingsUnavailable(
+            "sentence-transformers is not installed; similarity metrics "
+            "(MIG, redundancy, duplicate work) are unavailable. "
+            "Install with: pip install torch --index-url "
+            "https://download.pytorch.org/whl/cpu && pip install sentence-transformers"
+        ) from e
 
     return SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
 
@@ -74,6 +94,9 @@ class RunMetrics(BaseModel):
     tokens_per_unique_finding: float | None = None
     least_valuable_agent: str | None = None
     verdict: str = ""
+    # False when sentence-transformers is absent: the counted metrics are still
+    # real, the similarity-derived ones are simply not reported.
+    embeddings_available: bool = True
 
 
 def _texts_by_node(events) -> dict[str, tuple[str, str]]:
@@ -141,6 +164,20 @@ async def compute(store: EventStore, run_id: str) -> RunMetrics:
 
     nodes = sorted(by_node)
     texts = [by_node[n][1] for n in nodes]
+
+    # Counted metrics above never needed embeddings. If the optional dependency
+    # is absent, return what is genuinely measured rather than failing the whole
+    # request or - worse - substituting a cheaper similarity and presenting it
+    # as the same number.
+    if not embeddings_available():
+        m.embeddings_available = False
+        m.verdict = (
+            "Similarity metrics unavailable: sentence-transformers is not installed. "
+            "Handoff validity, recovery rate, parallel efficiency and approval "
+            "frequency above are measured; MIG, redundancy and duplicate work are not."
+        )
+        return m
+
     sim = cosine_matrix(texts)
 
     # ---- Marginal Information Gain: 1 - max similarity to any other agent
