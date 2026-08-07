@@ -51,6 +51,12 @@ services:
       # the other specialist succeeding).
       - key: OLLAMA_MODELS
         value: "gpt-oss:120b-cloud"
+      # Optional - widen the council with a genuinely different model family
+      # when set. Ollama alone still works with these unset/blank.
+      - key: GROQ_API_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
       - key: MAX_CONCURRENT_MODEL_CALLS
         value: "4"
       # Exact origin of the deployed Netlify frontend. Netlify preview

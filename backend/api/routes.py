@@ -30,38 +30,33 @@ router = APIRouter(prefix="/api")
 # event log; this is only a handle to the asyncio task.
 _TASKS: dict[str, asyncio.Task] = {}
 
-# spec -> (provider, model-tags-from-config) builder, keyed by LLM_PROVIDER.
-# Only "ollama" is implemented; adding a second provider is one more entry
-# here, not a rewrite of this function - the rest of the registry (groq,
-# gemini, openrouter adapters) already speaks the same "provider:model" spec
-# shape and stays reachable via an explicit req.models override even though
-# it is not the default.
-_MODEL_BUILDERS = {
-    "ollama": lambda: [
-        f"ollama:{m.strip()}" for m in settings.ollama_models.split(",") if m.strip()
-    ],
-}
-
-
 async def _default_models() -> list[str]:
-    """Model specs for the configured LLM_PROVIDER, fastest/cheapest first.
+    """Model specs across every configured provider, Ollama first.
 
-    `models[0]` answers, is preferred by the planner, and is the council
-    chairman by default; the rest widen the council. Model names themselves
-    live in config (OLLAMA_MODELS) rather than here, so a local tag and a
-    :cloud tag are interchangeable without touching this function - see
-    backend/config.py.
+    Ollama is the tested primary path - models[0] answers, is preferred by
+    the planner, and is council chairman by default. Groq and Gemini widen
+    the council with genuinely different model families when their keys are
+    configured: different labs have different blind spots, which is the
+    actual point of a council over asking one model twice. Ollama model
+    names live in config (OLLAMA_MODELS), so a local tag and a :cloud tag are
+    interchangeable without touching this function - see backend/config.py.
     """
-    provider = settings.llm_provider or "ollama"
-    build = _MODEL_BUILDERS.get(provider)
-    if build is None or provider not in configured_providers():
-        return []
-    return build()
+    configured = configured_providers()
+    models: list[str] = []
+    if "ollama" in configured:
+        models.extend(
+            f"ollama:{m.strip()}" for m in settings.ollama_models.split(",") if m.strip()
+        )
+    if "groq" in configured:
+        models.append("groq:llama-3.3-70b-versatile")
+    if "gemini" in configured:
+        models.append("gemini:gemini-2.0-flash")
+    return models[:6]  # ChatRequest.models caps at 6
 
 
 NO_MODELS = (
     "No model provider is configured. Set OLLAMA_BASE_URL (and OLLAMA_API_KEY "
-    "for Ollama Cloud) as environment variables."
+    "for Ollama Cloud), or GROQ_API_KEY / GEMINI_API_KEY, as environment variables."
 )
 
 
