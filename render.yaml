@@ -39,8 +39,18 @@ services:
         sync: false
       # Cloud-only tags (":cloud" suffix) - local tags have no weights on this
       # box. Comma-separated, no "ollama:" prefix.
+      #
+      # qwen3-coder:480b-cloud was here originally (sourced from a web search,
+      # never tested against a real key) and is confirmed BROKEN: a real call
+      # against this account's Ollama Cloud key returned "provider returned
+      # 410" - the tag doesn't exist/isn't enabled on this account. Verified
+      # live against the deployed app: gpt-oss:120b-cloud got a real 577-token
+      # completion in 4.1s, error: null. Add a second model back only after
+      # testing it the same way - a wrong tag here breaks the answer stream
+      # (models[0] is the chairman/fast path, so its failure isn't masked by
+      # the other specialist succeeding).
       - key: OLLAMA_MODELS
-        value: "qwen3-coder:480b-cloud,gpt-oss:120b-cloud"
+        value: "gpt-oss:120b-cloud"
       - key: MAX_CONCURRENT_MODEL_CALLS
         value: "4"
       # Exact origin of the deployed Netlify frontend. Netlify preview
