@@ -90,6 +90,17 @@ Open <http://localhost:7860>.
 
 ### Troubleshooting
 
+**`pip install` succeeded but the import still fails.** Almost always the wrong
+interpreter. If a newer Python is first on `PATH`, a bare `pip`/`python` installs
+there instead of into the venv. Check which one you are actually using:
+
+```bash
+.venv/Scripts/python -c "import sys; print(sys.executable, sys.version)"
+```
+
+Always install with `.venv/Scripts/python -m pip install …` rather than bare
+`pip`, so the interpreter and the target are the same by construction.
+
 **The torch install hangs.** `download.pytorch.org` is slow or blocked on some
 networks — we hit a 50-minute stall with zero bytes transferred. Symptom: pip
 sits at "Collecting torch" with no progress bar movement.

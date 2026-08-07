@@ -19,6 +19,9 @@ const tooltipStyle = {
 /** MIG below this means the agent added nothing the others did not have. */
 const MIG_FLOOR = 0.1
 
+/** Must match DUPLICATE_THRESHOLD in backend/metrics/metrics.py. */
+const DUPLICATE_THRESHOLD = 0.75
+
 function migColor(v: number) {
   if (v < MIG_FLOOR) return 'var(--color-failed)'
   if (v < 0.3) return '#fbbf24'
@@ -52,7 +55,7 @@ export function MetricsPanel({ metrics, report }: {
               hint="Mean pairwise cosine across branches" />
         <Stat label="Duplicate work" value={metrics.duplicate_work}
               tone={metrics.duplicate_work > 0 ? 'bad' : 'good'}
-              hint="Branch pairs with cosine > 0.85" />
+              hint={`Branch pairs with cosine > ${DUPLICATE_THRESHOLD}`} />
         <Stat label="Unique findings" value={metrics.unique_findings} />
         <Stat label="Tokens" value={metrics.total_tokens.toLocaleString()} />
         <Stat label="Cost" value={`$${metrics.total_cost_usd.toFixed(6)}`}
@@ -166,7 +169,7 @@ function RedundancyHeatmap({ metrics }: { metrics: RunMetrics }) {
               <td className="pr-2 text-[var(--color-ink-faint)] whitespace-nowrap">{a}</td>
               {nodes.map((b) => {
                 const v = value(a, b)
-                const dup = v != null && v > 0.85 && a !== b
+                const dup = v != null && v > DUPLICATE_THRESHOLD && a !== b
                 return (
                   <td key={b}
                       title={v == null ? 'below duplicate threshold' : `cosine ${v.toFixed(3)}`}
@@ -185,7 +188,7 @@ function RedundancyHeatmap({ metrics }: { metrics: RunMetrics }) {
         </tbody>
       </table>
       <p className="text-[10px] text-[var(--color-ink-faint)] mt-1">
-        Only pairs above the 0.85 duplicate threshold are scored; “·” is below it.
+        Only pairs above the {DUPLICATE_THRESHOLD} duplicate threshold are scored; “·” is below it.
       </p>
     </div>
   )

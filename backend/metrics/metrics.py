@@ -8,7 +8,6 @@ adds no provider cost to the thing being measured.
 """
 
 import itertools
-import json
 import logging
 from functools import lru_cache
 
@@ -18,7 +17,24 @@ from backend.events import EventStore, EventType
 
 log = logging.getLogger("aco.metrics")
 
-DUPLICATE_THRESHOLD = 0.85
+# Measured against all-MiniLM-L6-v2 on this project's own agent output, on
+# semantic_text() below rather than on raw JSON:
+#
+#   same issue, different wording (true duplicate work)   0.78
+#   genuinely different issues                            0.21 - 0.31
+#
+# 0.75 sits inside a gap almost half the scale wide. Both neighbouring values we
+# tried are wrong in the same direction: 0.85 (our first guess) and 0.80 both sit
+# ABOVE where real paraphrases land, so both reported zero duplicates while two
+# agents were plainly restating each other - a false negative in the one metric
+# whose entire job is honesty.
+#
+# Caveat worth stating out loud: this is calibrated on a small sample of our own
+# output. It is a tunable constant, not a universal constant.
+DUPLICATE_THRESHOLD = 0.75
+
+# Severity and rank are enum-ish and carry no semantic content worth embedding.
+_IGNORED_KEYS = {"severity", "rank", "id", "index"}
 
 
 class EmbeddingsUnavailable(RuntimeError):
@@ -99,31 +115,58 @@ class RunMetrics(BaseModel):
     embeddings_available: bool = True
 
 
-def _texts_by_node(events) -> dict[str, tuple[str, str]]:
-    """node_id -> (agent_id, validated output as text)."""
-    out: dict[str, tuple[str, str]] = {}
+def semantic_text(payload: object) -> str:
+    """The human-meaningful content of an output, with the JSON envelope removed.
+
+    Embedding `json.dumps(payload)` is wrong and measurably so. Every agent emits
+    the same keys, braces and quotes, and that shared structure alone scores ~0.70
+    cosine between findings that have nothing to do with each other. It compresses
+    the whole scale: MIG understates uniqueness and Redundancy Index overstates
+    duplication. Measured on this project's own output, dropping the envelope
+    moved unrelated pairs from 0.70 down to 0.25 while leaving true paraphrases
+    around 0.8.
+    """
+    parts: list[str] = []
+
+    def walk(node: object) -> None:
+        if isinstance(node, dict):
+            for k, v in node.items():
+                if k in _IGNORED_KEYS:
+                    continue
+                walk(v)
+        elif isinstance(node, list):
+            for v in node:
+                walk(v)
+        elif isinstance(node, str) and node.strip():
+            parts.append(node.strip())
+
+    walk(payload)
+    return ". ".join(parts)
+
+
+def _texts_by_node(events) -> dict[str, tuple[str, str, object]]:
+    """node_id -> (agent_id, semantic text for embedding, raw payload)."""
+    out: dict[str, tuple[str, str, object]] = {}
     for e in events:
         if e.event_type == EventType.HANDOFF_VALIDATED and e.node_id and e.payload:
-            out[e.node_id] = (e.agent_id or e.node_id,
-                              json.dumps(e.payload.get("payload"), sort_keys=True))
+            raw = e.payload.get("payload")
+            out[e.node_id] = (e.agent_id or e.node_id, semantic_text(raw), raw)
     return out
 
 
-def _findings(payload_text: str) -> list[str]:
-    try:
-        value = json.loads(payload_text)
-    except Exception:
+def _findings(payload: object) -> list[str]:
+    """Individual finding statements, for de-duplicated counting."""
+    if not isinstance(payload, dict):
         return []
-    if not isinstance(value, dict):
-        return []
-    items = value.get("findings") or value.get("prioritized") or []
+    items = payload.get("findings") or payload.get("prioritized") or []
     out = []
     for i in items:
         if isinstance(i, dict):
-            out.append(str(i.get("title") or i.get("summary") or json.dumps(i, sort_keys=True)))
+            text = i.get("title") or i.get("summary")
+            out.append(str(text) if text else semantic_text(i))
         else:
             out.append(str(i))
-    return out
+    return [t for t in out if t.strip()]
 
 
 async def compute(store: EventStore, run_id: str) -> RunMetrics:
@@ -192,13 +235,15 @@ async def compute(store: EventStore, run_id: str) -> RunMetrics:
 
     for i, node in enumerate(nodes):
         others = [sim[i][j] for j in range(len(nodes)) if j != i]
-        mig = round(1.0 - max(others), 4) if others else 1.0
+        # float() first: numpy float32 survives round() and leaks precision
+        # noise like 0.07999999821186066 into the API and the on-screen verdict.
+        mig = round(float(1.0 - max(others)), 4) if others else 1.0
         m.agents.append(AgentMetric(
             agent_id=by_node[node][0], node_id=node,
             marginal_information_gain=mig,
             tokens=per_node_tokens.get(node, 0),
             cost_usd=round(per_node_cost.get(node, 0.0), 8),
-            findings=len(_findings(by_node[node][1])),
+            findings=len(_findings(by_node[node][2])),
         ))
 
     # ---- Redundancy Index and duplicate work
@@ -213,7 +258,7 @@ async def compute(store: EventStore, run_id: str) -> RunMetrics:
         m.duplicate_work = len(m.duplicate_pairs)
 
     # ---- Cost per Unique Finding: dedupe findings by embedding, not by string
-    all_findings = [f for n in nodes for f in _findings(by_node[n][1])]
+    all_findings = [f for n in nodes for f in _findings(by_node[n][2])]
     m.unique_findings = _dedupe_count(all_findings)
     if m.unique_findings:
         m.cost_per_unique_finding = round(m.total_cost_usd / m.unique_findings, 8)
@@ -247,7 +292,7 @@ def _verdict(m: RunMetrics, weakest: AgentMetric) -> str:
     """The sentence the system says out loud when it was overkill."""
     if weakest.marginal_information_gain < 0.1:
         return (
-            f"Agent '{weakest.node_id}' scored MIG {weakest.marginal_information_gain} - it "
+            f"Agent '{weakest.node_id}' scored MIG {weakest.marginal_information_gain:.2f} - it "
             f"produced almost nothing the other agents did not already have. For this task "
             f"class a smaller graph would have been better."
         )

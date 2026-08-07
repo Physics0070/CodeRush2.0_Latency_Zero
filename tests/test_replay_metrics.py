@@ -141,11 +141,19 @@ async def test_metrics_detect_the_duplicate_pair(store):
     pair = {frozenset((p["a"], p["b"])) for p in m.duplicate_pairs}
     assert frozenset(("security", "quality")) in pair
 
-    # The near-duplicate pair must score low MIG - that is the honest signal.
-    assert min(by_node["security"].marginal_information_gain,
-               by_node["quality"].marginal_information_gain) < 0.2
-    # docs said something genuinely different.
-    assert by_node["docs"].marginal_information_gain > 0.3
+    # Assert the relationship, not a magic number: the agent that said something
+    # genuinely different must score materially higher than the pair that
+    # restated each other. An absolute threshold here would just encode whatever
+    # all-MiniLM-L6-v2 happens to return today.
+    dup_mig = max(by_node["security"].marginal_information_gain,
+                  by_node["quality"].marginal_information_gain)
+    unique_mig = by_node["docs"].marginal_information_gain
+    assert unique_mig > 2 * dup_mig, (
+        f"MIG failed to separate unique from duplicate work: "
+        f"docs={unique_mig} vs duplicates={dup_mig}"
+    )
+    # And the duplicate pair must sit below the midpoint of the scale.
+    assert dup_mig < 0.5
 
 
 async def test_metrics_deduplicate_findings(store):

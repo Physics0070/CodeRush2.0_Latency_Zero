@@ -142,7 +142,7 @@ Metrics tab.
 > other agent. This bar is red — that agent scored below 0.1. It produced almost
 > nothing the others didn't already have.
 >
-> Redundancy heatmap: this pair exceeded 0.85 cosine. They duplicated each
+> Redundancy heatmap: this pair exceeded the 0.75 duplicate threshold. They duplicated each
 > other's work.
 >
 > And the Pareto curve — same task at graph depth 1 through 4."

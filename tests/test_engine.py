@@ -152,7 +152,11 @@ async def test_three_branches_start_before_any_finishes(store):
     """
     from datetime import datetime
 
-    rid, result = await _run(store, fanout_graph(), completer=completer())
+    # Branch work must outlast the time taken to write three NODE_START rows.
+    # Each append is a round trip (~150-400ms), so at 0.3s branches a slow
+    # network can finish branch one before branch three has even been logged -
+    # a race in the test, not in the engine.
+    rid, result = await _run(store, fanout_graph(), completer=completer(delay=2.0))
     assert result.ok, result.failed_nodes
 
     events = await store.read(rid)
