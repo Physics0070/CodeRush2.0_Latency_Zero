@@ -90,14 +90,33 @@ export interface MarginalValueReport {
   recommendation: string; cost_basis: string
 }
 
+/**
+ * Empty by default: FastAPI serves this bundle from the same origin, so relative
+ * paths just work. Set VITE_API_BASE when the frontend is hosted separately
+ * (Vercel/Netlify static + the backend on a container host) — the backend cannot
+ * run on a serverless platform, since SSE and multi-minute runs outlive a
+ * function invocation.
+ */
+export const API_BASE = (import.meta.env.VITE_API_BASE ?? '').replace(/\/$/, '')
+
+const url = (path: string) => `${API_BASE}${path}`
+
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
-  const r = await fetch(path, {
+  const r = await fetch(url(path), {
     ...init,
     headers: { 'Content-Type': 'application/json', ...(init?.headers ?? {}) },
   })
   if (!r.ok) {
     const body = await r.text()
-    throw new Error(`${r.status}: ${body.slice(0, 300)}`)
+    let detail = body.slice(0, 300)
+    try {
+      const parsed = JSON.parse(body)
+      detail = parsed.message ?? parsed.detail ?? detail
+      if (typeof detail === 'object') detail = JSON.stringify(detail)
+    } catch {
+      /* body was not JSON; the raw slice is the best we have */
+    }
+    throw new Error(`${r.status} · ${detail}`)
   }
   return r.json() as Promise<T>
 }
@@ -150,7 +169,7 @@ export function streamEvents(
   onEvent: (e: LogEvent) => void,
   onDone: () => void,
 ): () => void {
-  const es = new EventSource(`/api/runs/${runId}/stream`)
+  const es = new EventSource(url(`/api/runs/${runId}/stream`))
   es.addEventListener('log', (m) => onEvent(JSON.parse((m as MessageEvent).data)))
   es.addEventListener('done', () => { es.close(); onDone() })
   es.onerror = () => { es.close(); onDone() }

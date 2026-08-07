@@ -2,84 +2,136 @@
 @import 'reactflow/dist/style.css';
 
 /* ---------------------------------------------------------------------------
-   Design tokens. Three layers: primitive -> semantic -> component. Nothing in
-   a component references a raw hex; swapping a theme means swapping this block.
-   Contrast pairs below are all >= 4.5:1 against their surface.
+   Design tokens. primitive -> semantic -> component. No component holds a raw
+   hex, so the whole theme swaps here. Every text/surface pair below clears
+   4.5:1; status colours are never the only signal (each is paired with a label
+   or a glyph) so the UI still reads without colour vision.
    --------------------------------------------------------------------------- */
 @theme {
-  --color-surface-0: #0a0a0b;
-  --color-surface-1: #121214;
-  --color-surface-2: #1a1a1e;
-  --color-surface-3: #232329;
-  --color-line: #2e2e36;
-  --color-line-strong: #3f3f4a;
+  /* surfaces, darkest to lightest */
+  --color-surface-0: #08080a;
+  --color-surface-1: #101014;
+  --color-surface-2: #17171c;
+  --color-surface-3: #202027;
+  --color-surface-4: #2a2a33;
+  --color-line: #26262e;
+  --color-line-strong: #383842;
 
-  --color-ink: #f4f4f5;
-  --color-ink-muted: #a1a1ac;
-  --color-ink-faint: #71717a;
+  /* text */
+  --color-ink: #f2f2f4;
+  --color-ink-muted: #a8a8b3;
+  --color-ink-faint: #6f6f7b;
 
-  --color-accent: #6ee7b7;
-  --color-accent-dim: #34d399;
+  /* brand */
+  --color-accent: #5eead4;
+  --color-accent-dim: #2dd4bf;
+  --color-accent-deep: #0d9488;
 
-  /* Node + event status. Semantic names, never used for decoration. */
-  --color-pending: #52525b;
+  /* status - semantic only, never decorative */
+  --color-pending: #4b4b55;
   --color-running: #60a5fa;
   --color-done: #34d399;
   --color-failed: #f87171;
   --color-blocked: #fb7185;
-  --color-skipped: #3f3f46;
+  --color-skipped: #33333c;
+  --color-warn: #fbbf24;
 
-  --font-sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-sans: 'Inter var', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
   --font-mono: ui-monospace, 'JetBrains Mono', 'SF Mono', Consolas, monospace;
+
+  --radius-panel: 14px;
 }
 
-html {
-  color-scheme: dark;
-}
+html { color-scheme: dark; }
 
 body {
-  background: var(--color-surface-0);
+  background:
+    radial-gradient(60rem 40rem at 15% -10%, #0d2b28 0%, transparent 60%),
+    radial-gradient(50rem 34rem at 100% 0%, #16203a 0%, transparent 55%),
+    var(--color-surface-0);
+  background-attachment: fixed;
   color: var(--color-ink);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
+  font-feature-settings: 'cv02', 'cv03', 'cv04', 'tnum';
 }
 
-/* Never remove the focus ring - replace it with a better one. */
+/* Replace the focus ring, never remove it. */
 :focus-visible {
   outline: 2px solid var(--color-accent);
   outline-offset: 2px;
-  border-radius: 4px;
+  border-radius: 6px;
 }
 
-::-webkit-scrollbar { width: 9px; height: 9px; }
+::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb {
   background: var(--color-line-strong);
   border-radius: 999px;
+  border: 3px solid transparent;
+  background-clip: content-box;
 }
+::-webkit-scrollbar-thumb:hover { background: #4a4a56; background-clip: content-box; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }
 
+/* ---- motion: only where it carries meaning ---- */
 @keyframes pulse-ring {
-  0%, 100% { box-shadow: 0 0 0 0 rgb(96 165 250 / 0.5); }
-  50% { box-shadow: 0 0 0 6px rgb(96 165 250 / 0); }
+  0%, 100% { box-shadow: 0 0 0 0 rgb(96 165 250 / 0.45); }
+  50%      { box-shadow: 0 0 0 7px rgb(96 165 250 / 0); }
 }
-.is-running { animation: pulse-ring 1.6s ease-out infinite; }
+.is-running { animation: pulse-ring 1.8s ease-out infinite; }
 
-/* React Flow surface adopts our tokens rather than its default light theme. */
-.react-flow__background { background: var(--color-surface-0); }
+@keyframes row-in {
+  from { opacity: 0; transform: translateY(-3px); }
+  to   { opacity: 1; transform: none; }
+}
+.row-in { animation: row-in 180ms ease-out; }
+
+@keyframes shimmer {
+  100% { transform: translateX(100%); }
+}
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  background: var(--color-surface-2);
+}
+.skeleton::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, #ffffff0d, transparent);
+  animation: shimmer 1.4s infinite;
+}
+
+/* ---- React Flow adopts our tokens rather than its light default ---- */
+.react-flow__background { background: transparent; }
 .react-flow__edge-path { stroke: var(--color-line-strong); stroke-width: 1.5; }
 .react-flow__edge.animated .react-flow__edge-path { stroke: var(--color-running); }
-.react-flow__handle { background: var(--color-line-strong); border: none; width: 6px; height: 6px; }
+.react-flow__handle {
+  background: var(--color-line-strong);
+  border: none;
+  width: 7px;
+  height: 7px;
+}
 .react-flow__attribution { display: none; }
+.react-flow__controls {
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 4px 16px #0008;
+}
 .react-flow__controls-button {
   background: var(--color-surface-2);
   border-bottom: 1px solid var(--color-line);
   fill: var(--color-ink-muted);
+  width: 26px;
+  height: 26px;
 }
-.react-flow__controls-button:hover { background: var(--color-surface-3); }
+.react-flow__controls-button:hover { background: var(--color-surface-4); }
