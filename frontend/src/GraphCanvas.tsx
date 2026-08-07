@@ -1,0 +1,168 @@
+import { useMemo } from 'react'
+import ReactFlow, {
+  Background, BackgroundVariant, Controls, Handle, Position,
+  type Edge, type Node, type NodeProps,
+} from 'reactflow'
+import type { GraphSpec, GraphNode } from './api'
+import { Badge } from './ui'
+
+export type NodeStatus = 'pending' | 'running' | 'done' | 'failed' | 'blocked' | 'skipped'
+
+const STATUS_COLOR: Record<NodeStatus, string> = {
+  pending: 'var(--color-pending)',
+  running: 'var(--color-running)',
+  done: 'var(--color-done)',
+  failed: 'var(--color-failed)',
+  blocked: 'var(--color-blocked)',
+  skipped: 'var(--color-skipped)',
+}
+
+const TYPE_GLYPH: Record<string, string> = {
+  clarify: '?', approval: '✓', fanout: '⋔', join: '⋈', agent: '◆',
+  verify: '⊙', council: '⚖', compensate: '↺', conditional: '◇', subgraph: '▣',
+}
+
+interface Data {
+  node: GraphNode
+  status: NodeStatus
+  onSelect: (id: string) => void
+  selected: boolean
+}
+
+function AcoNode({ data }: NodeProps<Data>) {
+  const { node, status, onSelect, selected } = data
+  const color = STATUS_COLOR[status]
+  const isAgent = node.type === 'agent' || node.type === 'verify'
+
+  return (
+    <button
+      onClick={() => onSelect(node.id)}
+      aria-label={`${node.type} node ${node.id}, ${status}`}
+      className={`min-w-[168px] text-left rounded-lg border bg-[var(--color-surface-2)] px-3 py-2 transition-colors ${
+        status === 'running' ? 'is-running' : ''
+      }`}
+      style={{
+        borderColor: selected ? 'var(--color-accent)' : color,
+        borderWidth: selected ? 2 : 1,
+      }}
+    >
+      <Handle type="target" position={Position.Top} />
+      <div className="flex items-center gap-2">
+        <span aria-hidden className="text-xs" style={{ color }}>{TYPE_GLYPH[node.type] ?? '•'}</span>
+        <span className="text-[13px] font-medium text-[var(--color-ink)] truncate">{node.id}</span>
+        <span
+          aria-hidden
+          className="ml-auto h-2 w-2 rounded-full shrink-0"
+          style={{ background: color }}
+        />
+      </div>
+      <div className="mt-1 flex items-center gap-1.5 flex-wrap">
+        <Badge>{node.type}</Badge>
+        {isAgent && node.agent && (
+          <span className="text-[10px] font-mono text-[var(--color-ink-faint)] truncate max-w-[130px]">
+            {node.agent.model.replace('ollama:', '').replace('groq:', '')}
+          </span>
+        )}
+        {node.agent && node.agent.allowed_side_effects.length > 0 && (
+          <Badge tone="warn">side effects</Badge>
+        )}
+      </div>
+      <Handle type="source" position={Position.Bottom} />
+    </button>
+  )
+}
+
+const nodeTypes = { aco: AcoNode }
+
+/** Lays the graph out by dependency level, so the parallel row reads as parallel. */
+function layout(graph: GraphSpec): Record<string, { x: number; y: number }> {
+  const parents = (id: string) => graph.edges.filter((e) => e.to_node === id).map((e) => e.from_node)
+  const compensators = new Set(graph.nodes.filter((n) => n.type === 'compensate').map((n) => n.id))
+
+  const level: Record<string, number> = {}
+  const resolve = (id: string, seen = new Set<string>()): number => {
+    if (level[id] !== undefined) return level[id]
+    if (seen.has(id)) return 0
+    seen.add(id)
+    const ps = parents(id).filter((p) => !compensators.has(p))
+    const v = ps.length === 0 ? 0 : Math.max(...ps.map((p) => resolve(p, seen))) + 1
+    level[id] = v
+    return v
+  }
+  graph.nodes.forEach((n) => resolve(n.id))
+
+  const byLevel: Record<number, string[]> = {}
+  graph.nodes.forEach((n) => {
+    const l = compensators.has(n.id) ? (level[n.compensates ?? ''] ?? 0) : level[n.id]
+    ;(byLevel[l] ??= []).push(n.id)
+  })
+
+  const pos: Record<string, { x: number; y: number }> = {}
+  Object.entries(byLevel).forEach(([l, ids]) => {
+    const y = Number(l) * 130
+    ids.forEach((id, i) => {
+      const offset = (i - (ids.length - 1) / 2) * 210
+      pos[id] = { x: offset + (compensators.has(id) ? 120 : 0), y: compensators.has(id) ? y + 62 : y }
+    })
+  })
+  return pos
+}
+
+export function GraphCanvas({ graph, statuses, selected, onSelect }: {
+  graph: GraphSpec
+  statuses: Record<string, NodeStatus>
+  selected: string | null
+  onSelect: (id: string) => void
+}) {
+  const pos = useMemo(() => layout(graph), [graph])
+
+  const nodes: Node<Data>[] = useMemo(
+    () => graph.nodes.map((n) => ({
+      id: n.id,
+      type: 'aco',
+      position: pos[n.id] ?? { x: 0, y: 0 },
+      data: { node: n, status: statuses[n.id] ?? 'pending', onSelect, selected: selected === n.id },
+    })),
+    [graph, pos, statuses, selected, onSelect],
+  )
+
+  const edges: Edge[] = useMemo(
+    () => graph.edges.map((e, i) => ({
+      id: `e${i}`,
+      source: e.from_node,
+      target: e.to_node,
+      animated: statuses[e.to_node] === 'running',
+      // A typed edge is drawn solid; a bare control edge is dashed. The
+      // distinction is the whole contract story, so it should be visible.
+      style: Object.keys(e.handoff_schema ?? {}).length
+        ? undefined
+        : { strokeDasharray: '4 4' },
+    })),
+    [graph, statuses],
+  )
+
+  return (
+    <ReactFlow
+      nodes={nodes} edges={edges} nodeTypes={nodeTypes}
+      fitView fitViewOptions={{ padding: 0.18 }}
+      minZoom={0.2} proOptions={{ hideAttribution: true }}
+      nodesDraggable={false} nodesConnectable={false}
+    >
+      <Background variant={BackgroundVariant.Dots} gap={22} size={1} color="#232329" />
+      <Controls showInteractive={false} />
+    </ReactFlow>
+  )
+}
+
+export function StatusLegend() {
+  return (
+    <div className="flex items-center gap-3 flex-wrap">
+      {(Object.keys(STATUS_COLOR) as NodeStatus[]).map((s) => (
+        <span key={s} className="flex items-center gap-1.5 text-[10px] text-[var(--color-ink-faint)]">
+          <span className="h-2 w-2 rounded-full" style={{ background: STATUS_COLOR[s] }} />
+          {s}
+        </span>
+      ))}
+    </div>
+  )
+}

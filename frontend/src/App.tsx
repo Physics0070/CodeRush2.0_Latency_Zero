@@ -1,41 +1,286 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import {
+  api, streamEvents,
+  type CouncilSummary, type GraphSpec, type LogEvent,
+  type MarginalValueReport, type ReplayDiff, type RunMetrics,
+} from './api'
+import { ClarifyPanel, type Clarification } from './ClarifyPanel'
+import { GraphCanvas, StatusLegend, type NodeStatus } from './GraphCanvas'
+import { MetricsPanel } from './MetricsPanel'
+import { TraceViewer } from './TraceViewer'
+import { Badge, Button, Empty, Panel } from './ui'
 
-type Health = { status: string; version: string }
+const DEMO_GOAL = 'Audit this repository and produce a prioritized remediation report.'
 
-/**
- * Block 0 scaffold. Its only job is to prove the frontend build is wired to the
- * FastAPI backend on the same origin. The real surface - GraphCanvas,
- * TraceViewer, MetricsPanel, ClarifyPanel - lands in block 10, after the
- * execution contract is solid.
- */
+/** Node status is derived from the event log, never tracked separately. */
+function deriveStatuses(events: LogEvent[]): Record<string, NodeStatus> {
+  const s: Record<string, NodeStatus> = {}
+  for (const e of events) {
+    const n = e.node_id
+    if (!n) continue
+    switch (e.event_type) {
+      case 'NODE_START': s[n] = 'running'; break
+      case 'NODE_END': if (s[n] !== 'failed' && s[n] !== 'blocked') s[n] = 'done'; break
+      case 'BRANCH_FAILED': case 'BUDGET_EXCEEDED': s[n] = 'failed'; break
+      case 'TOOL_BLOCKED': case 'INJECTION_BLOCKED': s[n] = 'blocked'; break
+      case 'APPROVAL_REQUESTED': if (!s[n]) s[n] = 'running'; break
+      case 'APPROVAL_GRANTED': s[n] = 'done'; break
+      case 'COMPENSATE': s[n] = 'done'; break
+    }
+  }
+  return s
+}
+
 export default function App() {
-  const [health, setHealth] = useState<Health | null>(null)
+  const [goal, setGoal] = useState(DEMO_GOAL)
+  const [models, setModels] = useState<string[]>([])
+  const [clarification, setClarification] = useState<Clarification | null>(null)
+  const [graph, setGraph] = useState<GraphSpec | null>(null)
+  const [council, setCouncil] = useState<CouncilSummary | null>(null)
+  const [runId, setRunId] = useState<string | null>(null)
+  const [events, setEvents] = useState<LogEvent[]>([])
+  const [live, setLive] = useState(false)
+  const [metrics, setMetrics] = useState<RunMetrics | null>(null)
+  const [report, setReport] = useState<MarginalValueReport | null>(null)
+  const [replay, setReplay] = useState<{ diff: ReplayDiff; id: string } | null>(null)
+  const [selected, setSelected] = useState<string | null>(null)
+  const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [tab, setTab] = useState<'trace' | 'metrics'>('trace')
+  const stopRef = useRef<(() => void) | null>(null)
 
   useEffect(() => {
-    fetch('/health')
-      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
-      .then(setHealth)
-      .catch((e: Error) => setError(e.message))
+    api.models().then((m) => setModels(m.models)).catch(() => {})
+    return () => stopRef.current?.()
   }, [])
 
+  const guard = useCallback(async (label: string, fn: () => Promise<void>) => {
+    setBusy(label); setError(null)
+    try { await fn() } catch (e) { setError((e as Error).message) } finally { setBusy(null) }
+  }, [])
+
+  const statuses = deriveStatuses(events)
+  const locked = graph?.locked ?? false
+
+  // ---- step 1-2: goal -> clarifying questions + permission
+  const askClarify = () => guard('clarify', async () => {
+    setGraph(null); setRunId(null); setEvents([]); setMetrics(null); setReplay(null); setReport(null)
+    setClarification(await api.clarify(goal))
+  })
+
+  // ---- step 3: council compiles the graph
+  const compile = (answers: Record<string, string>) => guard('compile', async () => {
+    const r = await api.compile(goal, answers, models)
+    setGraph(r.graph); setCouncil(r.council); setClarification(null)
+  })
+
+  // ---- step 4-5: lock, approve, run
+  const lock = () => graph && setGraph({ ...graph, locked: !graph.locked })
+
+  const run = () => guard('run', async () => {
+    if (!graph) return
+    setEvents([]); setMetrics(null); setReplay(null)
+    const approvals = graph.nodes.filter((n) => n.type === 'approval').map((n) => n.id)
+    const { run_id } = await api.start(goal, graph, approvals)
+    setRunId(run_id); setLive(true)
+    stopRef.current?.()
+    stopRef.current = streamEvents(
+      run_id,
+      (e) => setEvents((prev) => (prev.some((x) => x.seq === e.seq) ? prev : [...prev, e])),
+      () => {
+        setLive(false)
+        api.metrics(run_id).then(setMetrics).catch(() => {})
+      },
+    )
+  })
+
+  // ---- step 7: the adversarial demonstration
+  const redAgent = () => guard('red', async () => {
+    const r = await api.redAgent()
+    setRunId(r.run_id); setGraph(null); setMetrics(null); setTab('trace')
+    setEvents((await api.events(r.run_id)).events)
+  })
+
+  // ---- step 9: replay, diff must be zero
+  const doReplay = () => runId && guard('replay', async () => {
+    const r = await api.replay(runId)
+    setReplay({ diff: r.diff, id: r.replay_run_id })
+  })
+
+  // ---- step 10: marginal value across graph sizes
+  const doMarginal = () => guard('marginal', async () => {
+    setTab('metrics')
+    setReport(await api.marginalValue(goal, models))
+  })
+
   return (
-    <main className="min-h-screen flex items-center justify-center p-8">
-      <div className="max-w-xl w-full space-y-4">
-        <h1 className="text-2xl font-semibold tracking-tight">Agent Council Orchestrator</h1>
-        <p className="text-neutral-400 text-sm">
-          Unified Agent Form Orchestrator &middot; AE-03 &middot; Latency Zero
-        </p>
-        <div className="rounded-lg border border-neutral-800 bg-neutral-900 p-4 font-mono text-sm">
-          {error && <span className="text-red-400">backend unreachable: {error}</span>}
-          {!error && !health && <span className="text-neutral-500">checking backend&hellip;</span>}
-          {health && (
-            <span className="text-emerald-400">
-              backend {health.status} &middot; v{health.version}
-            </span>
-          )}
+    <div className="h-screen flex flex-col">
+      <header className="shrink-0 border-b border-[var(--color-line)] bg-[var(--color-surface-1)]">
+        <div className="flex items-center gap-3 px-4 py-2.5 flex-wrap">
+          <div className="flex items-baseline gap-2">
+            <h1 className="text-[15px] font-semibold">Agent Council Orchestrator</h1>
+            <span className="text-[10px] text-[var(--color-ink-faint)] font-mono">AE-03 · Latency Zero</span>
+          </div>
+          <div className="ml-auto flex items-center gap-1.5 flex-wrap">
+            {graph && <Badge tone="info">{graph.config_hash.slice(0, 12)}</Badge>}
+            {live && <Badge tone="info">streaming</Badge>}
+            <Button onClick={redAgent} variant="danger" disabled={!!busy}
+                    title="Undeclared tool call + smuggled instruction, both blocked">
+              {busy === 'red' ? '…' : 'Red Agent'}
+            </Button>
+          </div>
         </div>
+
+        <div className="flex items-center gap-2 px-4 pb-2.5 flex-wrap">
+          <input
+            value={goal} onChange={(e) => setGoal(e.target.value)}
+            aria-label="Goal"
+            className="flex-1 min-w-[280px] min-h-11 px-3 rounded-lg bg-[var(--color-surface-2)] border border-[var(--color-line)] text-[13px] focus:border-[var(--color-accent)] outline-none"
+            placeholder="Describe your goal in plain English"
+          />
+          <Button onClick={askClarify} variant="primary" disabled={!!busy || goal.trim().length < 10}>
+            {busy === 'clarify' ? '…' : 'Start'}
+          </Button>
+          {graph && (
+            <>
+              <Button onClick={lock}>{locked ? 'Unlock' : 'Lock'}</Button>
+              <Button onClick={run} variant="primary" disabled={!!busy || live}>
+                {busy === 'run' ? '…' : 'Approve & run'}
+              </Button>
+            </>
+          )}
+          {runId && !live && (
+            <>
+              <Button onClick={doReplay} disabled={!!busy}>{busy === 'replay' ? '…' : 'Replay'}</Button>
+              <Button onClick={doMarginal} disabled={!!busy}>
+                {busy === 'marginal' ? 'running depths 1-4…' : 'Marginal value'}
+              </Button>
+            </>
+          )}
+          {live && runId && <Button onClick={() => api.cancel(runId)} variant="danger">Cancel</Button>}
+        </div>
+      </header>
+
+      {error && (
+        <div role="alert" className="shrink-0 px-4 py-2 bg-[#f8717118] border-b border-[var(--color-failed)] text-[12px] text-[var(--color-failed)]">
+          {error}
+        </div>
+      )}
+
+      {replay && (
+        <div className="shrink-0 px-4 py-2 border-b border-[var(--color-line)] bg-[var(--color-surface-2)] flex items-center gap-3 flex-wrap text-[12px]">
+          <Badge tone={replay.diff.identical ? 'good' : 'bad'}>
+            {replay.diff.identical ? 'DIFF IS ZERO' : `${replay.diff.output_diffs.length} DIFFS`}
+          </Badge>
+          <span className="text-[var(--color-ink-muted)]">
+            {replay.diff.nodes_compared} nodes compared · cost ${replay.diff.original_cost_usd.toFixed(6)} → $
+            {replay.diff.replay_cost_usd.toFixed(6)} · wall {replay.diff.original_wall_ms}ms →{' '}
+            {replay.diff.replay_wall_ms}ms · served from the event log, nothing re-executed
+          </span>
+        </div>
+      )}
+
+      <main className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-[1.15fr_1fr] gap-3 p-3">
+        <Panel
+          title={clarification ? 'Clarify & approve' : 'Agent graph'}
+          right={graph ? <StatusLegend /> : undefined}
+          className="min-h-[320px]"
+        >
+          {clarification ? (
+            <ClarifyPanel clarification={clarification} onSubmit={compile} busy={busy === 'compile'} />
+          ) : graph ? (
+            <div className="h-full flex flex-col">
+              <div className="flex-1 min-h-0">
+                <GraphCanvas graph={graph} statuses={statuses} selected={selected} onSelect={setSelected} />
+              </div>
+              {selected && <NodeInspector graph={graph} id={selected} locked={locked} />}
+              {council && <CouncilStrip council={council} />}
+            </div>
+          ) : (
+            <Empty>
+              Type a goal and press Start. The system asks clarifying questions, requests
+              permission, then designs the agent team itself.
+            </Empty>
+          )}
+        </Panel>
+
+        <Panel
+          title={tab === 'trace' ? 'Live trace' : 'Honest metrics'}
+          className="min-h-[320px]"
+          right={
+            <div className="flex gap-1">
+              {(['trace', 'metrics'] as const).map((t) => (
+                <button key={t} onClick={() => setTab(t)}
+                  className={`min-h-8 px-2.5 rounded text-[11px] ${
+                    tab === t ? 'bg-[var(--color-surface-3)] text-[var(--color-ink)]'
+                              : 'text-[var(--color-ink-faint)]'}`}>
+                  {t}
+                </button>
+              ))}
+            </div>
+          }
+        >
+          {tab === 'trace'
+            ? <TraceViewer events={events} live={live} />
+            : <MetricsPanel metrics={metrics} report={report} />}
+        </Panel>
+      </main>
+    </div>
+  )
+}
+
+function NodeInspector({ graph, id, locked }: { graph: GraphSpec; id: string; locked: boolean }) {
+  const node = graph.nodes.find((n) => n.id === id)
+  if (!node) return null
+  const incoming = graph.edges.filter((e) => e.to_node === id)
+  return (
+    <div className="shrink-0 border-t border-[var(--color-line)] bg-[var(--color-surface-2)] p-3 text-[11px] max-h-[190px] overflow-auto">
+      <div className="flex items-center gap-2 mb-2">
+        <span className="font-semibold text-[12px]">{node.id}</span>
+        <Badge>{node.type}</Badge>
+        {locked && <Badge tone="warn">locked</Badge>}
       </div>
-    </main>
+      {node.agent ? (
+        <dl className="grid grid-cols-[110px_1fr] gap-y-1 text-[var(--color-ink-muted)]">
+          <dt className="text-[var(--color-ink-faint)]">model</dt><dd className="font-mono">{node.agent.model}</dd>
+          <dt className="text-[var(--color-ink-faint)]">fallback</dt><dd className="font-mono">{node.agent.fallback_model ?? '—'}</dd>
+          <dt className="text-[var(--color-ink-faint)]">tools</dt><dd className="font-mono">{node.agent.tools.join(', ') || 'none declared'}</dd>
+          <dt className="text-[var(--color-ink-faint)]">budget</dt><dd className="font-mono">{node.agent.budget_tokens} tokens · {node.agent.timeout_s}s</dd>
+          <dt className="text-[var(--color-ink-faint)]">side effects</dt><dd className="font-mono">{node.agent.allowed_side_effects.join(', ') || 'none (read-only)'}</dd>
+          <dt className="text-[var(--color-ink-faint)]">contract</dt><dd className="leading-relaxed">{node.agent.system_contract}</dd>
+        </dl>
+      ) : (
+        <p className="text-[var(--color-ink-faint)]">Control node — carries no model call.</p>
+      )}
+      {incoming.length > 0 && (
+        <div className="mt-2 pt-2 border-t border-[var(--color-line)]">
+          <div className="text-[var(--color-ink-faint)] mb-1">Incoming typed handoffs</div>
+          {incoming.map((e, i) => (
+            <div key={i} className="font-mono text-[10px] text-[var(--color-ink-muted)]">
+              {e.from_node} → {e.to_node}{' '}
+              {Object.keys(e.handoff_schema ?? {}).length
+                ? <span className="text-[var(--color-done)]">schema enforced</span>
+                : <span className="text-[var(--color-ink-faint)]">control edge</span>}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function CouncilStrip({ council }: { council: CouncilSummary }) {
+  return (
+    <div className="shrink-0 border-t border-[var(--color-line)] px-3 py-2 text-[10px] flex items-center gap-2 flex-wrap">
+      <span className="text-[var(--color-ink-faint)] uppercase tracking-wider">Council</span>
+      <Badge tone="info">chairman {council.chairman.split(':').pop()}</Badge>
+      <Badge>winner {council.winner_label}</Badge>
+      <Badge tone={council.escalated ? 'bad' : 'good'}>
+        disagreement {council.disagreement}
+      </Badge>
+      <span className="text-[var(--color-ink-faint)] font-mono">
+        {council.proposals.length} proposals · {council.rankings.length} anonymous rankings
+      </span>
+    </div>
   )
 }
