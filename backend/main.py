@@ -20,6 +20,7 @@ from slowapi.middleware import SlowAPIMiddleware
 from slowapi.util import get_remote_address
 
 from backend import __version__
+from backend.api import router as api_router
 from backend.config import settings
 
 logging.basicConfig(level=settings.log_level, format="%(asctime)s %(levelname)-8s %(message)s")
@@ -68,6 +69,9 @@ async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONR
 async def health(request: Request) -> dict[str, str]:
     """Liveness probe. Deliberately leaks no configuration."""
     return {"status": "ok", "version": __version__}
+
+
+app.include_router(api_router)
 
 
 # Mounted last so it cannot shadow /health or future /api routes.
