@@ -88,6 +88,32 @@ Open <http://localhost:7860>.
 > Blank values in `.env` fall back to defaults, so `cp .env.example .env` boots
 > without editing anything except the two Supabase keys.
 
+### Troubleshooting
+
+**The torch install hangs.** `download.pytorch.org` is slow or blocked on some
+networks — we hit a 50-minute stall with zero bytes transferred. Symptom: pip
+sits at "Collecting torch" with no progress bar movement.
+
+```bash
+# add explicit timeouts so pip gives up and retries instead of hanging
+pip install --retries 8 --timeout 45 torch --index-url https://download.pytorch.org/whl/cpu
+```
+
+Torch is needed **only** by the metrics module (Block 8). Everything else — the
+event log, typed handoffs, the engine, the council, permissions, replay, the UI
+— runs without it. If you are short on time, skip it and the app still works;
+only `/api/runs/{id}/metrics` and `/api/marginal-value` will fail.
+
+**`ModuleNotFoundError: No module named 'backend'`.** Run from the repository
+root, not from inside `backend/`. `pytest` reads `pythonpath = ["."]` from
+`pyproject.toml`.
+
+**Ollama connection refused.** Start it (`ollama serve`) and confirm the models
+are present with `ollama list`.
+
+**Tests skip with "supabase not configured".** `.env` is missing
+`SUPABASE_URL` / `SUPABASE_SERVICE_KEY`, or the migration has not been applied.
+
 ### Environment
 
 | Variable | Required | Default | Purpose |
