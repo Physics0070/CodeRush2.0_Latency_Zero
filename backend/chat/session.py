@@ -15,11 +15,55 @@ import time
 import uuid
 from collections.abc import AsyncIterator
 
-from backend.chat.answer import contribute, stream_direct, stream_synthesis
+from backend.chat.answer import (
+    CONTRIBUTION_SCHEMA,
+    contribute,
+    stream_direct,
+    stream_synthesis,
+)
 from backend.chat.planner import Plan, pick_planner_model, plan_for
+from backend.engine.spec import AgentSpec, Edge, GraphSpec, Node
 from backend.events import EventStore, EventType
 
 log = logging.getLogger("aco.chat")
+
+
+def chat_graph(plan: Plan, models: list[str]) -> GraphSpec:
+    """The shape this turn will actually run, as a real GraphSpec.
+
+    Not decoration. Replay recomputes the config hash from the stored spec and
+    refuses a run whose spec was modified, so a chat turn needs a genuine graph
+    to be replayable at all. It also means a chat turn renders in the same
+    canvas as an orchestrated run, because it is the same kind of object.
+    """
+    nodes: list[Node] = []
+    edges: list[Edge] = []
+
+    if plan.needs_council:
+        nodes.append(Node(id="fanout", type="fanout"))
+        for i, s in enumerate(plan.specialists):
+            nodes.append(Node(id=s.id, type="agent", agent=AgentSpec(
+                id=s.id, role=s.role,
+                system_contract=f"Examine one aspect of the question: {s.role}",
+                tools=[], model=models[i % len(models)],
+                output_schema=CONTRIBUTION_SCHEMA,
+                budget_tokens=900, timeout_s=180,
+            )))
+            edges.append(Edge(from_node="fanout", to_node=s.id,
+                              handoff_schema=CONTRIBUTION_SCHEMA))
+        nodes.append(Node(id="join", type="join"))
+        for s in plan.specialists:
+            edges.append(Edge(from_node=s.id, to_node="join"))
+
+    # A passthrough, not an agent node. The answer is prose, and agent nodes
+    # are schema-validated JSON handoffs - modelling it as one makes replay try
+    # to parse an English paragraph as a typed contract and fail every time.
+    # The answer text is still recorded as a TOOL_RESULT row.
+    nodes.append(Node(id="answer", type="join"))
+    if plan.needs_council:
+        edges.append(Edge(from_node="join", to_node="answer"))
+
+    return GraphSpec(version=1, nodes=nodes, edges=edges).finalize()
 
 
 def _mig(contributions: list[dict]) -> dict:
@@ -86,14 +130,19 @@ async def run_turn(
     plan: Plan = await plan_for(question, pick_planner_model(models))
     plan_ms = int((time.perf_counter() - t0) * 1000)
 
+    # The run is created after planning, not before: the graph is a product of
+    # the plan, and replay validates the stored spec against its own hash.
+    graph = chat_graph(plan, models)
     if store:
         try:
-            await store.create_run(run_id, question[:2000], "chat", seed, {}, "running")
+            await store.create_run(run_id, question[:2000], graph.config_hash, seed,
+                                   graph.model_dump(), "running")
             await store.append(run_id, EventType.RUN_START,
                                payload={"mode": "chat", "question": question[:2000]})
             await store.append(run_id, EventType.GRAPH_PROPOSED, payload={
                 "intent": plan.intent, "complexity": plan.complexity,
                 "rationale": plan.rationale, "source": plan.source,
+                "config_hash": graph.config_hash,
                 "branches": [s.id for s in plan.specialists],
             })
         except Exception as e:
@@ -130,10 +179,38 @@ async def run_turn(
 
         for c in contributions:
             if store:
+                # TOOL_RESULT is what replay serves from, keyed by
+                # (node_id, agent_id). Without this row a chat turn records
+                # that it happened but cannot be replayed, which would make
+                # the drawer's replay claim false for exactly the turns most
+                # people will look at.
+                if not c.get("error"):
+                    await store.append(
+                        run_id, EventType.TOOL_RESULT,
+                        node_id=c["aspect"], agent_id=c["aspect"],
+                        tokens_in=c.get("tokens_in", 0),
+                        tokens_out=c.get("tokens_out", 0),
+                        cost_usd=c.get("cost_usd", 0.0),
+                        latency_ms=c.get("latency_ms"),
+                        payload={"model": c.get("model", ""),
+                                 "used_fallback": c.get("used_fallback", False),
+                                 "replayed": False,
+                                 "text": c.get("text", "")},
+                    )
+                    # The validated handoff is what a replay diff compares.
+                    # Without it the original run has no recorded outputs and
+                    # every node reads as a difference.
+                    await store.append(
+                        run_id, EventType.HANDOFF_VALIDATED,
+                        node_id=c["aspect"], agent_id=c["aspect"],
+                        payload={"attempt": 1 if c.get("repaired") else 0,
+                                 "payload": {"points": c.get("points") or []}},
+                    )
                 await store.append(
                     run_id,
                     EventType.NODE_END if not c.get("error") else EventType.BRANCH_FAILED,
-                    node_id=c["aspect"], agent_id=c["aspect"], payload=c,
+                    node_id=c["aspect"], agent_id=c["aspect"],
+                    payload={k: v for k, v in c.items() if k != "text"},
                 )
             yield {"event": "specialist", "data": {
                 "id": c["aspect"], "points": len(c.get("points") or []),
@@ -163,6 +240,17 @@ async def run_turn(
 
     answer = "".join(chunks)
     total_ms = int((time.perf_counter() - t0) * 1000)
+
+    if store and answer:
+        # The answer is a completion too. Recording it under a stable node id
+        # means a replayed turn reproduces the reply itself, not just the
+        # specialist notes that fed it.
+        await store.append(
+            run_id, EventType.TOOL_RESULT, node_id="answer", agent_id="answer",
+            latency_ms=total_ms,
+            payload={"model": answer_model, "used_fallback": False,
+                     "replayed": False, "text": answer},
+        )
 
     # ---------- benchmarks ----------
     spec_latency = sum(c.get("latency_ms") or 0 for c in contributions)

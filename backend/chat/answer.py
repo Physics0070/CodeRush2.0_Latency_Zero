@@ -205,6 +205,11 @@ async def contribute(
                     "model": c.model, "tokens": tokens,
                     "latency_ms": latency, "cost_usd": round(cost, 8),
                     "repaired": attempt > 0,
+                    # Raw text and token split, so the caller can write a
+                    # TOOL_RESULT row that replay can actually serve from.
+                    "text": c.text, "tokens_in": c.tokens_in,
+                    "tokens_out": c.tokens_out,
+                    "used_fallback": c.used_fallback,
                 }
             # An empty points list is a legitimate answer - the specialist is
             # saying its aspect does not apply - so accept it rather than

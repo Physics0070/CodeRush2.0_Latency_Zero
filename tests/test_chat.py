@@ -10,8 +10,14 @@ import pytest
 
 from backend.chat import heuristic_plan, run_turn
 from backend.chat.answer import CONTRIBUTION_SCHEMA, _format_contributions, stream_direct
-from backend.chat.planner import Plan, _coerce, obviously_simple, pick_planner_model
-from backend.chat.session import _mig
+from backend.chat.planner import (
+    Plan,
+    Specialist,
+    _coerce,
+    obviously_simple,
+    pick_planner_model,
+)
+from backend.chat.session import _mig, chat_graph
 from backend.handoff import validate
 
 pytestmark = pytest.mark.asyncio
@@ -219,3 +225,43 @@ async def test_stream_direct_sends_history_and_a_system_prompt(monkeypatch):
 def test_plan_route_is_reported_honestly():
     assert Plan(complexity="simple").needs_council is False
     assert Plan(complexity="deep", specialists=[]).needs_council is False
+
+
+# ------------------------------------------------------- replayable turns
+
+
+def test_chat_turn_has_a_real_graph_and_hash():
+    """Replay recomputes the hash from the stored spec and refuses a mismatch,
+    so a placeholder config_hash makes a turn unreplayable."""
+    plan = Plan(complexity="moderate", specialists=[
+        Specialist(id="a", role="x"), Specialist(id="b", role="y"),
+    ])
+    g = chat_graph(plan, ["ollama:m:1"])
+    assert g.config_hash and g.config_hash != "chat"
+    assert len(g.config_hash) >= 8
+    # Every specialist runs in one level, which is what makes the fanout
+    # parallel rather than a chain.
+    assert sorted(g.levels()[1]) == ["a", "b"]
+
+
+def test_the_answer_node_is_not_schema_validated():
+    """The answer is prose. Modelling it as an agent node makes replay try to
+    parse an English paragraph as a typed handoff, which fails every time."""
+    g = chat_graph(Plan(complexity="simple"), ["ollama:m:1"])
+    assert g.node("answer").type == "join"
+
+
+def test_fast_path_graph_is_a_single_node():
+    g = chat_graph(Plan(complexity="simple"), ["ollama:m:1"])
+    assert [n.id for n in g.nodes] == ["answer"]
+
+
+def test_council_graph_wires_fanout_to_every_specialist():
+    plan = Plan(complexity="deep", specialists=[
+        Specialist(id="a", role="x"), Specialist(id="b", role="y"),
+        Specialist(id="c", role="z"),
+    ])
+    g = chat_graph(plan, ["ollama:m:1"])
+    fanned = {e.to_node for e in g.edges if e.from_node == "fanout"}
+    assert fanned == {"a", "b", "c"}
+    assert g.node("a").agent.output_schema == CONTRIBUTION_SCHEMA
