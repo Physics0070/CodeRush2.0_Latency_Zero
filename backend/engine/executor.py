@@ -275,6 +275,20 @@ class Executor:
                 seed=self.seed, temperature=0.0, max_tokens=min(remaining, 1024),
                 store=self.store, run_id=self.run_id, node_id=node.id, agent_id=agent.id,
             )
+            # The engine records every completion, whatever produced it. Replay
+            # reads exactly these rows, so this must not depend on which
+            # completer was injected.
+            await self.store.append(
+                self.run_id, EventType.TOOL_RESULT, node_id=node.id, agent_id=agent.id,
+                payload={
+                    "model": c.model,
+                    "used_fallback": c.used_fallback,
+                    "replayed": c.replayed,
+                    "text": c.text,
+                },
+                tokens_in=c.tokens_in, tokens_out=c.tokens_out,
+                cost_usd=c.cost_usd, latency_ms=c.latency_ms,
+            )
             spent["tokens"] += c.tokens_in + c.tokens_out
             if spent["tokens"] > agent.budget_tokens:
                 await self.store.append(

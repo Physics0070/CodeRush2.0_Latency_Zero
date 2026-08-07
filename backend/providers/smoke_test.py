@@ -45,9 +45,14 @@ async def main() -> None:
 
         for spec in specs:
             try:
-                c = await complete(
-                    spec, PROMPT, seed=42, max_tokens=32,
-                    store=store, run_id=run_id, agent_id="smoke",
+                c = await complete(spec, PROMPT, seed=42, max_tokens=32)
+                # The engine normally writes this row; this script is not the
+                # engine, so it records its own.
+                await store.append(
+                    run_id, EventType.TOOL_RESULT, agent_id="smoke",
+                    payload={"model": c.model, "used_fallback": c.used_fallback},
+                    tokens_in=c.tokens_in, tokens_out=c.tokens_out,
+                    cost_usd=c.cost_usd, latency_ms=c.latency_ms,
                 )
                 print(f"  {spec}")
                 print(f"    text        : {c.text.strip()[:60]!r}")
@@ -63,14 +68,15 @@ async def main() -> None:
         print("=" * 66)
         good = specs[0]
         c = await complete(
-            "ollama:this-model-does-not-exist",
-            PROMPT,
-            fallback_model=good,
-            seed=42,
-            max_tokens=32,
-            store=store,
-            run_id=run_id,
-            agent_id="fallback_demo",
+            "ollama:this-model-does-not-exist", PROMPT,
+            fallback_model=good, seed=42, max_tokens=32,
+            store=store, run_id=run_id, agent_id="fallback_demo",
+        )
+        await store.append(
+            run_id, EventType.TOOL_RESULT, agent_id="fallback_demo",
+            payload={"model": c.model, "used_fallback": c.used_fallback},
+            tokens_in=c.tokens_in, tokens_out=c.tokens_out,
+            cost_usd=c.cost_usd, latency_ms=c.latency_ms,
         )
         print(f"  answered by  : {c.model}")
         print(f"  used_fallback: {c.used_fallback}")

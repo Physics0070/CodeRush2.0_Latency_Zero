@@ -31,6 +31,8 @@ class Completion(BaseModel):
     tool_calls: list[ToolCall] = []
     # True when this came from `fallback_model` after the primary failed.
     used_fallback: bool = False
+    # True when this was served from the event log rather than a provider.
+    replayed: bool = False
 
 
 class ProviderError(RuntimeError):

@@ -112,22 +112,8 @@ async def complete(
         )
         result.used_fallback = True
 
-    if store and run_id:
-        await store.append(
-            run_id,
-            EventType.TOOL_RESULT,
-            node_id=node_id,
-            agent_id=agent_id,
-            payload={
-                "model": result.model,
-                "used_fallback": result.used_fallback,
-                # Recorded so replay can serve this call from the log instead of
-                # re-executing it (block 9).
-                "text": result.text,
-            },
-            tokens_in=result.tokens_in,
-            tokens_out=result.tokens_out,
-            cost_usd=result.cost_usd,
-            latency_ms=result.latency_ms,
-        )
+    # Deliberately does NOT write TOOL_RESULT. Replay depends on those rows, so
+    # recording them is the engine's guarantee (see engine/executor.py) rather
+    # than the provider layer's - otherwise swapping in a different completer
+    # would silently make a run unreplayable.
     return result

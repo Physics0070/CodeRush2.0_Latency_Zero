@@ -61,8 +61,9 @@ class LoggedCompleter:
             raise RuntimeError(f"no recorded completion for {key}; run is not replayable")
         row = queue.pop(0)
         self.served += 1
-        store, run_id = kw.get("store"), kw.get("run_id")
-        c = Completion(
+        # The executor writes the TOOL_RESULT row; `replayed` marks it so a
+        # replay of a replay reads the original recording, not this one.
+        return Completion(
             text=row.get("text", ""),
             tokens_in=row.get("tokens_in", 0),
             tokens_out=row.get("tokens_out", 0),
@@ -71,15 +72,8 @@ class LoggedCompleter:
             latency_ms=0,
             model=row.get("model", model),
             used_fallback=row.get("used_fallback", False),
+            replayed=True,
         )
-        if store and run_id:
-            await store.append(
-                run_id, EventType.TOOL_RESULT, node_id=key[0], agent_id=key[1],
-                payload={"model": c.model, "used_fallback": c.used_fallback,
-                         "text": c.text, "replayed": True},
-                tokens_in=c.tokens_in, tokens_out=c.tokens_out, cost_usd=0.0, latency_ms=0,
-            )
-        return c
 
 
 async def recorded_completions(
