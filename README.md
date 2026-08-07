@@ -78,9 +78,10 @@ Full detail: [docs/architecture.md](docs/architecture.md).
 
 ## Setup
 
-Prerequisites: **Python 3.11+**, **Node 20+**, a Groq and/or Gemini API key,
-and a [Turso](https://turso.tech) database. [Ollama](https://ollama.com) is
-optional, for local models during development only.
+Prerequisites: **Python 3.11+**, **Node 20+**, an [OpenRouter](https://openrouter.ai)
+API key (or Groq/Gemini as a fallback), and a [Turso](https://turso.tech)
+database. [Ollama](https://ollama.com) is optional, for local models during
+development only.
 
 ```bash
 git clone https://github.com/Physics0070/CodeRush2.0_Latency_Zero.git
@@ -98,9 +99,9 @@ pip install -r requirements-embeddings.txt \
 
 # 2. Configuration
 cp .env.example .env
-# fill in TURSO_DATABASE_URL, TURSO_AUTH_TOKEN, and GROQ_API_KEY and/or
-# GEMINI_API_KEY - the chat endpoint 503s naming the missing variable
-# if neither hosted key is set
+# fill in TURSO_DATABASE_URL, TURSO_AUTH_TOKEN, and OPENROUTER_API_KEY
+# (or GROQ_API_KEY / GEMINI_API_KEY as a fallback) - the chat endpoint
+# 503s naming the missing variable if no hosted key is set
 
 # 3. Database
 turso db shell <db-name> < migrations/001_events.sql
@@ -169,8 +170,9 @@ with `ollama list`. Not required otherwise - it is not on the default path.
 |---|---|---|---|
 | `TURSO_DATABASE_URL` | yes | — | Event log, runs, artifacts |
 | `TURSO_AUTH_TOKEN` | yes | — | Server-side only, never sent to the browser |
-| `GROQ_API_KEY` | one of these two | — | Answers and council members |
-| `GEMINI_API_KEY` | one of these two | — | Answers and council members |
+| `OPENROUTER_API_KEY` | preferred | — | Answers and council members, 3 model families, $0 |
+| `GROQ_API_KEY` | fallback | — | Used if `OPENROUTER_API_KEY` is unset |
+| `GEMINI_API_KEY` | fallback | — | Used if `OPENROUTER_API_KEY` is unset |
 | `OLLAMA_BASE_URL` | no | `http://localhost:11434` | Local models, dev only |
 | `MAX_REPAIR_ATTEMPTS` | no | `2` | Repair retries before a branch fails |
 | `DEFAULT_SEED` | no | `42` | Recorded per run; required for replay |

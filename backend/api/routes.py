@@ -16,6 +16,7 @@ from backend.api.schemas import (
     MarginalValueRequest,
     RunRequest,
 )
+from backend.config import settings
 from backend.council import clarifying_questions, compile_graph, permission_prompt
 from backend.engine import Executor, GraphSpec
 from backend.events import EventStore, EventType
@@ -29,33 +30,38 @@ router = APIRouter(prefix="/api")
 # event log; this is only a handle to the asyncio task.
 _TASKS: dict[str, asyncio.Task] = {}
 
+# spec -> (provider, model-tags-from-config) builder, keyed by LLM_PROVIDER.
+# Only "ollama" is implemented; adding a second provider is one more entry
+# here, not a rewrite of this function - the rest of the registry (groq,
+# gemini, openrouter adapters) already speaks the same "provider:model" spec
+# shape and stays reachable via an explicit req.models override even though
+# it is not the default.
+_MODEL_BUILDERS = {
+    "ollama": lambda: [
+        f"ollama:{m.strip()}" for m in settings.ollama_models.split(",") if m.strip()
+    ],
+}
+
 
 async def _default_models() -> list[str]:
-    """Hosted models only, fastest first.
+    """Model specs for the configured LLM_PROVIDER, fastest/cheapest first.
 
-    Local inference is no longer on the default path. An Ollama model in a
-    memory-capped container generates at well under one token per second, which
-    is slower than the specialist timeout and made council answers look hung -
-    the user watches an empty screen, which is indistinguishable from a broken
-    app. A Space cannot run Ollama at all, so dropping it also makes the
-    deployed instance and a local one agree on which models exist.
-
-    `models[0]` answers; the rest widen the council. Provider diversity now
-    comes from running Groq and Gemini side by side rather than from mixing in
-    a local model.
+    `models[0]` answers, is preferred by the planner, and is the council
+    chairman by default; the rest widen the council. Model names themselves
+    live in config (OLLAMA_MODELS) rather than here, so a local tag and a
+    :cloud tag are interchangeable without touching this function - see
+    backend/config.py.
     """
-    configured = configured_providers()
-    models: list[str] = []
-    if "groq" in configured:
-        models.append("groq:llama-3.3-70b-versatile")
-    if "gemini" in configured:
-        models.append("gemini:gemini-2.0-flash")
-    return models[:3]
+    provider = settings.llm_provider or "ollama"
+    build = _MODEL_BUILDERS.get(provider)
+    if build is None or provider not in configured_providers():
+        return []
+    return build()
 
 
 NO_MODELS = (
-    "No model provider is configured. Set GROQ_API_KEY or GEMINI_API_KEY "
-    "(in the Space UI these go in Settings -> Variables and secrets, as secrets)."
+    "No model provider is configured. Set OLLAMA_BASE_URL (and OLLAMA_API_KEY "
+    "for Ollama Cloud) as environment variables."
 )
 
 
@@ -319,7 +325,12 @@ async def stream(run_id: str, request: Request) -> EventSourceResponse:
                         return
                 await asyncio.sleep(0.5)
 
-    return EventSourceResponse(gen())
+    # ping: an SSE comment every 15s so a proxy or load balancer sees traffic
+    # on an otherwise-quiet long poll and doesn't time the connection out.
+    # X-Accel-Buffering: nginx-family proxies (which Render's edge is) buffer
+    # a response by default, which would hold the whole stream until it ends -
+    # exactly what a live tail must not do.
+    return EventSourceResponse(gen(), ping=15, headers={"X-Accel-Buffering": "no"})
 
 
 @router.get("/runs/{run_id}/metrics")

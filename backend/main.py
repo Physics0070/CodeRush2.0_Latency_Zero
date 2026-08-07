@@ -1,10 +1,8 @@
-"""FastAPI entrypoint.
-
-Serves the API and, in the Docker image, the built React frontend from the same
-origin on port 7860 (HF Spaces hardcodes that port).
+"""FastAPI entrypoint. Render web service - the frontend is a separate Netlify
+deploy, so nothing here serves a built frontend bundle by default.
 
 Run from the repository root:
-    uvicorn backend.main:app --host 0.0.0.0 --port 7860
+    uvicorn backend.main:app --host 0.0.0.0 --port $PORT
 """
 
 import logging
@@ -42,9 +40,21 @@ app = FastAPI(
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 app.add_middleware(SlowAPIMiddleware)
+# FRONTEND_ORIGIN is the production Netlify (or custom) domain, exact match.
+# The regex additionally covers Netlify's preview subdomains, which use two
+# different shapes (deploy-preview-12--site.netlify.app,
+# branch-name--site.netlify.app) - matching on the .netlify.app suffix rather
+# than either shape specifically is what makes both work. This is a specific
+# suffix pattern, not the literal "*" wildcard, so it is safe to combine with
+# allow_credentials=True (Starlette reflects the matched origin, never "*").
+_cors_origins = list(settings.cors_origin_list)
+if settings.frontend_origin and settings.frontend_origin not in _cors_origins:
+    _cors_origins.append(settings.frontend_origin)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.cors_origin_list,
+    allow_origins=_cors_origins,
+    allow_origin_regex=r"^https://[a-zA-Z0-9-]+\.netlify\.app$",
     allow_credentials=True,
     allow_methods=["GET", "POST", "PATCH", "DELETE"],
     allow_headers=["Authorization", "Content-Type"],

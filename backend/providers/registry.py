@@ -5,21 +5,32 @@ An agent declares `model: "ollama:qwen2.5:7b"`. Swapping that string to
 between providers - the graph, the schemas and the engine are untouched.
 """
 
+import asyncio
 import logging
 
+from backend.config import settings
 from backend.events import EventStore, EventType
 from backend.providers.base import Completion, ProviderAdapter, ProviderError
 from backend.providers.gemini import GeminiAdapter
 from backend.providers.groq import GroqAdapter
 from backend.providers.ollama import OllamaAdapter
+from backend.providers.openrouter import OpenRouterAdapter
 from backend.providers.secret_broker import get_handle
 
 log = logging.getLogger("aco.providers")
+
+# Caps simultaneous in-flight model calls across the whole council so a wide
+# fanout cannot blow through a provider's rate limit all at once. A module
+# level asyncio.Semaphore is safe here: since Python 3.10 it no longer binds
+# to a specific event loop at construction, only when first awaited, and this
+# process runs a single loop for its lifetime.
+_CALL_SLOTS = asyncio.Semaphore(settings.max_concurrent_model_calls)
 
 _ADAPTERS: dict[str, type[ProviderAdapter]] = {
     "ollama": OllamaAdapter,
     "groq": GroqAdapter,
     "gemini": GeminiAdapter,
+    "openrouter": OpenRouterAdapter,
 }
 
 
@@ -65,15 +76,16 @@ async def complete(
     """
     adapter, model = adapter_for(spec)
     try:
-        result = await adapter.complete(
-            messages,
-            model,
-            temperature=temperature,
-            seed=seed,
-            max_tokens=max_tokens,
-            tools=tools,
-            json_mode=json_mode,
-        )
+        async with _CALL_SLOTS:
+            result = await adapter.complete(
+                messages,
+                model,
+                temperature=temperature,
+                seed=seed,
+                max_tokens=max_tokens,
+                tools=tools,
+                json_mode=json_mode,
+            )
     except ProviderError as primary_error:
         if not fallback_model:
             if store and run_id:
@@ -104,15 +116,16 @@ async def complete(
                 },
             )
         fb_adapter, fb_model = adapter_for(fallback_model)
-        result = await fb_adapter.complete(
-            messages,
-            fb_model,
-            temperature=temperature,
-            seed=seed,
-            max_tokens=max_tokens,
-            tools=tools,
-            json_mode=json_mode,
-        )
+        async with _CALL_SLOTS:
+            result = await fb_adapter.complete(
+                messages,
+                fb_model,
+                temperature=temperature,
+                seed=seed,
+                max_tokens=max_tokens,
+                tools=tools,
+                json_mode=json_mode,
+            )
         result.used_fallback = True
 
     # Deliberately does NOT write TOOL_RESULT. Replay depends on those rows, so

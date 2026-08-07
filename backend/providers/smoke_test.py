@@ -19,7 +19,7 @@ async def main() -> None:
     print("=" * 66)
     print("SECRET BROKER")
     print("=" * 66)
-    for p in ("ollama", "groq", "gemini"):
+    for p in ("ollama", "groq", "gemini", "openrouter"):
         h = get_handle(p)
         # Printing the handle must never print a key - that is the point.
         print(f"  {p:8} {h}  base_url={h.base_url}")
@@ -34,6 +34,8 @@ async def main() -> None:
     print("=" * 66)
 
     specs = [f"ollama:{m}" for m in local if not m.endswith(":cloud")][:2]
+    if "openrouter" in configured_providers():
+        specs.append("openrouter:nvidia/nemotron-3-nano-30b-a3b:free")
     if "groq" in configured_providers():
         specs.append("groq:llama-3.3-70b-versatile")
     if "gemini" in configured_providers():

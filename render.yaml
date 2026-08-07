@@ -1,10 +1,11 @@
 version: 1
 
 services:
-  # FastAPI backend, native Python - no Dockerfile. A free web service is a
-  # real persistent process (not a serverless function), so the SSE chat
-  # stream holds open for as long as an answer takes. It sleeps after 15
-  # minutes idle and takes ~1 minute to wake on the next request.
+  # FastAPI backend, native Python - no Dockerfile, no ollama binary on this
+  # box. Model calls go out to Ollama Cloud (or a tunnelled dev instance) over
+  # HTTP; Render has no GPU and not enough RAM to run inference itself.
+  # The frontend is a separate Netlify deploy - not defined here, so this is
+  # the only service in this file.
   - type: web
     name: aco-backend
     runtime: python
@@ -15,31 +16,30 @@ services:
     envVars:
       - key: APP_ENV
         value: production
-      - key: CORS_ORIGINS
-        value: https://aco-frontend.onrender.com
+      - key: LLM_PROVIDER
+        value: ollama
+      # https://ollama.com is Ollama Cloud's base URL - the adapter appends
+      # /api/chat itself (verified against Ollama's own docs, no /v1 suffix
+      # needed). Point this at a tunnelled local instance instead for a
+      # non-cloud deploy.
+      - key: OLLAMA_BASE_URL
+        value: https://ollama.com
+      - key: OLLAMA_API_KEY
+        sync: false
+      # Cloud-only tags (":cloud" suffix) - local tags have no weights on this
+      # box. Comma-separated, no "ollama:" prefix.
+      - key: OLLAMA_MODELS
+        value: "qwen3-coder:480b-cloud,gpt-oss:120b-cloud"
+      - key: MAX_CONCURRENT_MODEL_CALLS
+        value: "4"
+      # Exact origin of the deployed Netlify frontend. Netlify preview
+      # subdomains are matched separately, in code, by .netlify.app suffix -
+      # see backend/main.py.
+      - key: FRONTEND_ORIGIN
+        sync: false
       - key: TURSO_DATABASE_URL
         sync: false
       - key: TURSO_AUTH_TOKEN
         sync: false
       - key: SECRET_KEY
         sync: false
-      - key: GROQ_API_KEY
-        sync: false
-      - key: GEMINI_API_KEY
-        sync: false
-
-  # Built React bundle on Render's CDN - free, no sleep, no compute. Points at
-  # the backend above via VITE_API_BASE, which api.ts already supports for
-  # exactly this split-hosting shape.
-  - type: web
-    name: aco-frontend
-    runtime: static
-    buildCommand: cd frontend && npm ci && npm run build
-    staticPublishPath: frontend/dist
-    envVars:
-      - key: VITE_API_BASE
-        value: https://aco-backend.onrender.com
-    routes:
-      - type: rewrite
-        source: /*
-        destination: /index.html

@@ -216,7 +216,7 @@ def pick_planner_model(models: list[str]) -> str | None:
     """
     if not models:
         return None
-    for prefix in ("groq:", "gemini:"):
+    for prefix in ("openrouter:", "groq:", "gemini:"):
         for m in models:
             if m.startswith(prefix):
                 return m

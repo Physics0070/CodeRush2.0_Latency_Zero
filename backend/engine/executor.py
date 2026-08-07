@@ -215,16 +215,25 @@ class Executor:
         return NodeResult(node_id=node.id, ok=True, output={"approved": True})
 
     async def _passthrough(self, node: Node) -> NodeResult:
-        """fanout/join/clarify carry no model call; join merges its parents."""
+        """fanout/join/clarify carry no model call; join merges its parents.
+
+        Nothing but wall-clock separates start from end here, so both events
+        go through one append_many round trip instead of two - see its
+        docstring for why this doesn't apply to the agent-node path below.
+        """
         started = time.perf_counter()
-        await self.store.append(self.run_id, EventType.NODE_START, node_id=node.id,
-                                payload={"type": node.type})
         merged = {p: self.outputs.get(p) for p in self.graph.parents(node.id)}
         if node.type == "clarify" and self.clarifications:
             merged["answers"] = self.clarifications
         elapsed = int((time.perf_counter() - started) * 1000)
-        await self.store.append(self.run_id, EventType.NODE_END, node_id=node.id,
-                                payload={"type": node.type}, latency_ms=elapsed)
+        await self.store.append_many(
+            self.run_id,
+            [
+                (EventType.NODE_START, {"type": node.type}, None),
+                (EventType.NODE_END, {"type": node.type}, elapsed),
+            ],
+            node_id=node.id,
+        )
         return NodeResult(node_id=node.id, ok=True, output=merged, latency_ms=elapsed)
 
     async def _agent_node(self, node: Node) -> NodeResult:

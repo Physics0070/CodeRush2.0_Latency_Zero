@@ -14,6 +14,8 @@ place they could leak from.
 import os
 from dataclasses import dataclass, field
 
+from backend.config import settings
+
 
 # `repr=False` on the secret field: a stray f-string or traceback that prints a
 # handle cannot print the key.
@@ -29,10 +31,17 @@ class ProviderHandle:
         return self.provider == "ollama" or bool(self._secret)
 
     def auth_headers(self) -> dict[str, str]:
-        """Built at call time, handed straight to httpx, never stored."""
+        """Built at call time, handed straight to httpx, never stored.
+
+        Ollama is deliberately included here, not defaulted to it: a local or
+        tunnelled instance has no key and must see no Authorization header at
+        all (some dev proxies reject an empty/garbage bearer token), while
+        Ollama Cloud requires one. `not self._secret` above already covers
+        "no key configured" for both cases.
+        """
         if not self._secret:
             return {}
-        if self.provider == "groq":
+        if self.provider in ("groq", "openrouter", "ollama"):
             return {"Authorization": f"Bearer {self._secret}"}
         if self.provider == "gemini":
             return {"x-goog-api-key": self._secret}
@@ -45,9 +54,12 @@ class ProviderHandle:
 
 
 _SPEC = {
+    "openrouter": ("OPENROUTER_API_KEY", "https://openrouter.ai/api/v1"),
     "groq": ("GROQ_API_KEY", "https://api.groq.com/openai/v1"),
     "gemini": ("GEMINI_API_KEY", "https://generativelanguage.googleapis.com/v1beta"),
-    "ollama": (None, "http://localhost:11434"),
+    # OLLAMA_API_KEY is optional (see config.py) - present for Ollama Cloud,
+    # absent for a local/tunnelled instance.
+    "ollama": ("OLLAMA_API_KEY", "http://localhost:11434"),
 }
 
 
@@ -57,7 +69,13 @@ def get_handle(provider: str) -> ProviderHandle:
     env_key, default_url = _SPEC[provider]
 
     if provider == "ollama":
-        return ProviderHandle(provider, os.environ.get("OLLAMA_BASE_URL") or default_url)
+        # Base URL is not a secret, so it comes from settings (backend.config
+        # is the single source for it) rather than a second os.environ read
+        # here. Falls back to localhost only when unset - config.py's prod
+        # validator refuses to boot with it blank in prod, so this fallback
+        # only ever fires in dev.
+        base_url = settings.ollama_base_url or default_url
+        return ProviderHandle(provider, base_url, os.environ.get(env_key) or None)
 
     return ProviderHandle(provider, default_url, os.environ.get(env_key) or None)
 

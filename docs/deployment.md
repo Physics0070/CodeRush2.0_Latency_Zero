@@ -36,8 +36,9 @@ Blueprint", and it provisions them from that file.
 
 Secrets go in the Render dashboard per service, never in `render.yaml`
 (`sync: false` there means "prompt me, don't commit it"):
-`TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN`, `SECRET_KEY`, and at least one of
-`GROQ_API_KEY` / `GEMINI_API_KEY`.
+`TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN`, `SECRET_KEY`, and `OPENROUTER_API_KEY`
+(or `GROQ_API_KEY` / `GEMINI_API_KEY` as a fallback - see
+`backend/api/routes.py::_default_models`).
 
 ---
 
@@ -119,15 +120,15 @@ hosted providers answer — which is also the situation on HF Spaces.
    stay free for everyone. Check before relying on this path; Option C above
    needs no such check.
 2. Settings → *Variables and secrets*. Add as **secrets**, not variables:
-   `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN`, `SECRET_KEY`, and `GROQ_API_KEY`
+   `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN`, `SECRET_KEY`, and `OPENROUTER_API_KEY`
 3. `git remote add space https://huggingface.co/spaces/<user>/<space>`
 4. `git push space main`
 5. Watch the build to completion, then `curl https://<user>-<space>.hf.space/health`
 
 **Ollama is not available on a Space.** There is no way to run `ollama serve`
-plus multi-GB model files on the free tier. Set `GROQ_API_KEY` so the deployed
-instance has a working provider — the model string is per agent, so nothing else
-changes. This is the same swap as demo step 8.
+plus multi-GB model files on the free tier. Set `OPENROUTER_API_KEY` so the
+deployed instance has a working provider — the model string is per agent, so
+nothing else changes. This is the same swap as demo step 8.
 
 Known issues:
 
@@ -196,8 +197,9 @@ does not, the run still completes — the log is in Postgres, and
 | `TURSO_DATABASE_URL` | backend | Required |
 | `TURSO_AUTH_TOKEN` | backend | **Secret.** Server-side only, never in the bundle |
 | `SECRET_KEY` | backend | Prod refuses to boot without it |
-| `GROQ_API_KEY` | backend | **Secret.** At least one hosted key is required - no local-model fallback in prod |
-| `GEMINI_API_KEY` | backend | **Secret.** The other half of the "at least one" above |
+| `OPENROUTER_API_KEY` | backend | **Secret.** Preferred - one key, three model families, $0. No local-model fallback in prod |
+| `GROQ_API_KEY` | backend | **Secret.** Fallback if `OPENROUTER_API_KEY` is unset |
+| `GEMINI_API_KEY` | backend | **Secret.** Fallback if `OPENROUTER_API_KEY` is unset |
 | `CORS_ORIGINS` | backend | Explicit list; `*` is rejected |
 | `APP_ENV=prod` | backend | Disables `/docs` |
 | `VITE_API_BASE` | frontend | Blank for single-origin; full URL for split |

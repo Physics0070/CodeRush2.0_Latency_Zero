@@ -55,8 +55,9 @@ cat <<EOF
     TURSO_DATABASE_URL
     TURSO_AUTH_TOKEN
     SECRET_KEY
-    GROQ_API_KEY          <- at least one of these two is required; the app
-    GEMINI_API_KEY        <- has no local-model fallback on a Space
+    OPENROUTER_API_KEY    <- preferred; one key, three model families, $0
+    GROQ_API_KEY          <- fallback if OPENROUTER_API_KEY is unset
+    GEMINI_API_KEY        <- fallback if OPENROUTER_API_KEY is unset
 
   Then watch the build. When it is green:
     curl https://${USER}-${SPACE}.hf.space/health

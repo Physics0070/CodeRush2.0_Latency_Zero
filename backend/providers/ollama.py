@@ -1,7 +1,10 @@
-"""Ollama adapter - local models, genuinely zero cost.
-
-This is the provider the demo runs on: no key, no quota, no network, and the
-same model file every time, which is one less source of replay drift.
+"""Ollama adapter - one code path for Ollama Cloud and a local/tunnelled
+instance. Which one is in play is entirely a matter of `self.handle`: base URL
+and optional bearer key come from secret_broker, this class has no opinion on
+where the model actually runs. Verified against Ollama's own docs: both cloud
+and local serve the same native `/api/chat` path (no `/v1` OpenAI-compat
+suffix needed here), cloud requires `Authorization: Bearer <key>`, local
+typically has no key and must see no Authorization header at all.
 """
 
 import json
@@ -45,7 +48,7 @@ class OllamaAdapter(ProviderAdapter):
         async def call() -> Completion:
             started = time.perf_counter()
             async with httpx.AsyncClient(base_url=self.handle.base_url, timeout=300.0) as c:
-                r = await c.post("/api/chat", json=body)
+                r = await c.post("/api/chat", json=body, headers=self.handle.auth_headers())
                 self._classify(r)
                 data = r.json()
             elapsed = int((time.perf_counter() - started) * 1000)
@@ -76,7 +79,9 @@ class OllamaAdapter(ProviderAdapter):
             options["seed"] = seed
         body = {"model": model, "messages": messages, "stream": True, "options": options}
         async with httpx.AsyncClient(base_url=self.handle.base_url, timeout=300.0) as c:
-            async with c.stream("POST", "/api/chat", json=body) as r:
+            async with c.stream(
+                "POST", "/api/chat", json=body, headers=self.handle.auth_headers()
+            ) as r:
                 self._classify(r)
                 async for line in r.aiter_lines():
                     if not line.strip():
@@ -88,6 +93,6 @@ class OllamaAdapter(ProviderAdapter):
 
     async def list_models(self) -> list[str]:
         async with httpx.AsyncClient(base_url=self.handle.base_url, timeout=30.0) as c:
-            r = await c.get("/api/tags")
+            r = await c.get("/api/tags", headers=self.handle.auth_headers())
             self._classify(r)
             return [m["name"] for m in r.json().get("models", [])]
