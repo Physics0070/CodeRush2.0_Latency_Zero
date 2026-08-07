@@ -16,8 +16,10 @@ clarifying questions, asks permission, designs an agent team as a visual graph,
 shows it for approval, executes it parallel-first, streams live state, and
 replays any past run with a provably identical result.
 
-Runs at **₹0** — Groq/Gemini free tiers, Supabase free tier; Ollama remains
-available for local development but is no longer the deployed default.
+Runs at **₹0** — Ollama Cloud's free tier answers by default, Groq and Gemini
+widen the council with a different model family each when configured, and
+persistence is Turso's free tier. The same Ollama adapter also talks to a
+local or tunnelled instance for development.
 
 ---
 
@@ -78,10 +80,11 @@ Full detail: [docs/architecture.md](docs/architecture.md).
 
 ## Setup
 
-Prerequisites: **Python 3.11+**, **Node 20+**, an [OpenRouter](https://openrouter.ai)
-API key (or Groq/Gemini as a fallback), and a [Turso](https://turso.tech)
-database. [Ollama](https://ollama.com) is optional, for local models during
-development only.
+Prerequisites: **Python 3.11+**, **Node 20+**, an [Ollama Cloud](https://ollama.com)
+API key (or a local/tunnelled Ollama instance, no key needed), and a
+[Turso](https://turso.tech) database. Groq/Gemini keys are optional - they
+widen the council with a different model family each, but Ollama alone is a
+complete, working configuration.
 
 ```bash
 git clone https://github.com/Physics0070/CodeRush2.0_Latency_Zero.git
@@ -99,9 +102,10 @@ pip install -r requirements-embeddings.txt \
 
 # 2. Configuration
 cp .env.example .env
-# fill in TURSO_DATABASE_URL, TURSO_AUTH_TOKEN, and OPENROUTER_API_KEY
-# (or GROQ_API_KEY / GEMINI_API_KEY as a fallback) - the chat endpoint
-# 503s naming the missing variable if no hosted key is set
+# fill in TURSO_DATABASE_URL, TURSO_AUTH_TOKEN, and either OLLAMA_API_KEY
+# (Ollama Cloud) or nothing (local Ollama at the default localhost URL) -
+# the chat endpoint 503s naming the missing variable if no provider is
+# reachable. GROQ_API_KEY / GEMINI_API_KEY are additive, not required.
 
 # 3. Database
 turso db shell <db-name> < migrations/001_events.sql
@@ -170,21 +174,45 @@ with `ollama list`. Not required otherwise - it is not on the default path.
 |---|---|---|---|
 | `TURSO_DATABASE_URL` | yes | — | Event log, runs, artifacts |
 | `TURSO_AUTH_TOKEN` | yes | — | Server-side only, never sent to the browser |
-| `OPENROUTER_API_KEY` | preferred | — | Answers and council members, 3 model families, $0 |
-| `GROQ_API_KEY` | fallback | — | Used if `OPENROUTER_API_KEY` is unset |
-| `GEMINI_API_KEY` | fallback | — | Used if `OPENROUTER_API_KEY` is unset |
-| `OLLAMA_BASE_URL` | no | `http://localhost:11434` | Local models, dev only |
+| `LLM_PROVIDER` | prod only | — | Which provider `_default_models()` treats as primary; only `ollama` is implemented |
+| `OLLAMA_BASE_URL` | prod only | `http://localhost:11434` | `https://ollama.com` for Cloud, or a local/tunnelled URL |
+| `OLLAMA_API_KEY` | Cloud only | — | Required for Ollama Cloud; must be absent for an unauthenticated local instance |
+| `OLLAMA_MODELS` | no | `llama3.2:3b,qwen2.5:7b` | Comma-separated tags, no `ollama:` prefix - local and `:cloud` tags are interchangeable |
+| `GROQ_API_KEY` | no | — | Additive - widens the council with a different model family when set |
+| `GEMINI_API_KEY` | no | — | Additive - widens the council with a different model family when set |
+| `MAX_CONCURRENT_MODEL_CALLS` | no | `4` | Caps simultaneous in-flight model calls across the council |
 | `MAX_REPAIR_ATTEMPTS` | no | `2` | Repair retries before a branch fails |
 | `DEFAULT_SEED` | no | `42` | Recorded per run; required for replay |
 | `DEFAULT_BUDGET_TOKENS` | no | `8000` | Engine-enforced, per agent |
 | `DEFAULT_TIMEOUT_S` | no | `60` | Engine-enforced, per agent |
 | `SECRET_KEY` | prod only | — | Prod refuses to boot without it |
 | `CORS_ORIGINS` | no | `http://localhost:5173` | Explicit allow-list; `*` is rejected |
+| `FRONTEND_ORIGIN` | prod only | — | Deployed frontend's exact origin; Netlify preview subdomains are matched separately by `.netlify.app` suffix |
 | `RATE_LIMIT_*` | no | see `.env.example` | No threshold is hardcoded |
 
 Provider keys are read by **one module**, `backend/providers/secret_broker.py`.
 Nowhere else. They never enter a log line, an event payload, or the frontend
 bundle.
+
+---
+
+## Deployment
+
+Split hosting, both free: the backend is a native-Python Render web service
+(no Docker, no `ollama` binary on the box - model calls go out to Ollama
+Cloud over HTTP), the frontend is a static Netlify site pointed at it via
+`VITE_API_BASE`.
+
+- **Backend** — Render reads `render.yaml` at the repo root directly
+  (New → Blueprint). Secrets you provide: `TURSO_DATABASE_URL`,
+  `TURSO_AUTH_TOKEN`, `SECRET_KEY`, `OLLAMA_API_KEY`, `FRONTEND_ORIGIN`, and
+  optionally `GROQ_API_KEY` / `GEMINI_API_KEY`. Everything else is already in
+  the file.
+- **Frontend** — Netlify reads `frontend/netlify.toml`. Base directory
+  `frontend`, build `npm run build`, publish `dist`. Set `VITE_API_BASE` to
+  the deployed backend's URL.
+- A free Render web service sleeps after 15 minutes idle and takes about a
+  minute to wake on the next request - expected, not a bug.
 
 ---
 
