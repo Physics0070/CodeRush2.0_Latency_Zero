@@ -152,6 +152,130 @@ export const api = {
       { method: 'POST', body: JSON.stringify({ goal, models, depths: [1, 2, 3, 4] }) }),
 }
 
+// ------------------------------------------------------------------ chat
+
+export interface ChatMessage { role: 'user' | 'assistant'; content: string }
+
+export interface PlanInfo {
+  intent: string
+  complexity: 'simple' | 'moderate' | 'deep'
+  rationale: string
+  source: string
+  route: 'fast' | 'council'
+  clarifying_questions: string[]
+  specialists: { id: string; role: string }[]
+  plan_ms: number
+}
+
+export interface SpecialistInfo {
+  id: string; points: number; model: string | null
+  latency_ms: number | null; tokens: number | null; error: string | null
+}
+
+export interface Benchmarks {
+  run_id: string
+  route: 'fast' | 'council'
+  intent: string
+  complexity: string
+  planner_source: string
+  models_used: string[]
+  timing: {
+    plan_ms: number; fanout_ms: number
+    first_token_ms: number | null; total_ms: number
+  }
+  specialists: {
+    id: string; points: number; latency_ms: number | null
+    tokens: number | null; failed: boolean
+  }[]
+  parallel_efficiency: number | null
+  tokens: number
+  cost_usd: number
+  answer_chars: number
+  marginal_information_gain: {
+    available: boolean
+    per_agent: Record<string, number>
+    overlapping_pairs: { a: string; b: string; similarity: number }[]
+  }
+}
+
+export interface ChatHandlers {
+  onPlan?: (p: PlanInfo) => void
+  onStatus?: (stage: string) => void
+  onSpecialist?: (s: SpecialistInfo) => void
+  onToken?: (t: string) => void
+  onBenchmarks?: (b: Benchmarks) => void
+  onError?: (detail: string) => void
+}
+
+/**
+ * Streams a chat turn.
+ *
+ * `EventSource` is GET-only and the turn carries history in the body, so the
+ * SSE frames are parsed off a fetch stream here instead. Returns an abort
+ * function so a user can stop a long answer.
+ */
+export function streamChat(
+  body: { message: string; history: ChatMessage[]; models?: string[] },
+  h: ChatHandlers,
+): () => void {
+  const ctrl = new AbortController()
+
+  ;(async () => {
+    try {
+      const r = await fetch(url('/api/chat'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+        signal: ctrl.signal,
+      })
+      if (!r.ok || !r.body) {
+        throw new Error(`${r.status} · ${(await r.text()).slice(0, 200)}`)
+      }
+
+      const reader = r.body.getReader()
+      const decoder = new TextDecoder()
+      let buf = ''
+
+      for (;;) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buf += decoder.decode(value, { stream: true })
+
+        // SSE frames are separated by a blank line. Keep the trailing partial
+        // frame in the buffer until its terminator arrives.
+        const frames = buf.split('\n\n')
+        buf = frames.pop() ?? ''
+
+        for (const frame of frames) {
+          let name = 'message'
+          const dataLines: string[] = []
+          for (const line of frame.split('\n')) {
+            if (line.startsWith('event:')) name = line.slice(6).trim()
+            else if (line.startsWith('data:')) dataLines.push(line.slice(5).trimStart())
+          }
+          if (!dataLines.length) continue
+
+          let data: unknown
+          try { data = JSON.parse(dataLines.join('\n')) } catch { continue }
+
+          switch (name) {
+            case 'plan': h.onPlan?.(data as PlanInfo); break
+            case 'status': h.onStatus?.((data as { stage: string }).stage); break
+            case 'specialist': h.onSpecialist?.(data as SpecialistInfo); break
+            case 'token': h.onToken?.(data as string); break
+            case 'benchmarks': h.onBenchmarks?.(data as Benchmarks); break
+            case 'error': h.onError?.((data as { detail: string }).detail); break
+          }
+        }
+      }
+    } catch (e) {
+      if ((e as Error).name !== 'AbortError') h.onError?.((e as Error).message)
+    }
+  })()
+
+  return () => ctrl.abort()
+}
+
 export interface CouncilSummary {
   chairman: string
   borda: Record<string, number>

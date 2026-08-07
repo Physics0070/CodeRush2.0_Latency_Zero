@@ -4,6 +4,7 @@ import {
   type CouncilSummary, type GraphSpec, type LogEvent,
   type MarginalValueReport, type ReplayDiff, type RunMetrics,
 } from './api'
+import { ChatPanel } from './ChatPanel'
 import { ClarifyPanel, type Clarification } from './ClarifyPanel'
 import { GraphCanvas, StatusLegend, type NodeStatus } from './GraphCanvas'
 import { MetricsPanel } from './MetricsPanel'
@@ -47,6 +48,9 @@ export default function App() {
   const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [tab, setTab] = useState<'trace' | 'metrics'>('trace')
+  // Chat is the default surface: the product answers questions, and the
+  // orchestrator view explains how. The old flow is unchanged behind the tab.
+  const [mode, setMode] = useState<'chat' | 'orchestrator'>('chat')
   const stopRef = useRef<(() => void) | null>(null)
 
   useEffect(() => {
@@ -135,28 +139,52 @@ export default function App() {
             </div>
           </div>
 
-          <div className="hidden md:block ml-4"><StepRail current={step} /></div>
+          <div className="ml-4 flex items-center gap-1 p-0.5 rounded-[9px] bg-[var(--color-surface-2)] border border-[var(--color-line)]">
+            {(['chat', 'orchestrator'] as const).map((m) => (
+              <button
+                key={m}
+                onClick={() => setMode(m)}
+                className={`px-3 h-7 rounded-[7px] text-[12px] capitalize transition-colors ${
+                  mode === m
+                    ? 'bg-[var(--color-surface-4)] text-[var(--color-ink)]'
+                    : 'text-[var(--color-ink-faint)] hover:text-[var(--color-ink-muted)]'
+                }`}
+              >
+                {m}
+              </button>
+            ))}
+          </div>
+
+          {mode === 'orchestrator' && (
+            <div className="hidden lg:block ml-2"><StepRail current={step} /></div>
+          )}
 
           <div className="ml-auto flex items-center gap-2 flex-wrap">
-            {graph && <Badge tone="accent">{graph.config_hash.slice(0, 10)}</Badge>}
-            {live && (
+            {mode === 'orchestrator' && graph && (
+              <Badge tone="accent">{graph.config_hash.slice(0, 10)}</Badge>
+            )}
+            {mode === 'orchestrator' && live && (
               <span className="inline-flex items-center gap-1.5 text-[11px] text-[var(--color-running)]">
                 <span className="h-1.5 w-1.5 rounded-full bg-current animate-pulse" />
                 streaming
               </span>
             )}
-            {alerts > 0 && <Badge tone="bad">{alerts} blocked</Badge>}
-            <Button
-              onClick={redAgent} variant="danger" loading={busy === 'red'} disabled={!!busy}
-              title="Undeclared tool call and a smuggled instruction, both blocked"
-            >
-              Red Agent
-            </Button>
+            {mode === 'orchestrator' && alerts > 0 && (
+              <Badge tone="bad">{alerts} blocked</Badge>
+            )}
+            {mode === 'orchestrator' && (
+              <Button
+                onClick={redAgent} variant="danger" loading={busy === 'red'} disabled={!!busy}
+                title="Undeclared tool call and a smuggled instruction, both blocked"
+              >
+                Red Agent
+              </Button>
+            )}
           </div>
         </div>
 
         {/* ------------------------------------------------------ goal bar */}
-        <form
+        {mode === 'orchestrator' && <form
           className="flex items-center gap-2 px-4 pb-3 flex-wrap"
           onSubmit={(e) => { e.preventDefault(); askClarify() }}
         >
@@ -203,11 +231,13 @@ export default function App() {
           {live && runId && (
             <Button onClick={() => api.cancel(runId)} variant="danger">Cancel</Button>
           )}
-        </form>
+        </form>}
       </header>
 
+      {mode === 'chat' && <ChatPanel models={models} />}
+
       {/* ----------------------------------------------------------- alerts */}
-      {error && (
+      {mode === 'orchestrator' && error && (
         <div
           role="alert"
           className="shrink-0 flex items-start gap-2 px-4 py-2 bg-[#f8717114] border-b border-[#f8717144] text-[12px] text-[var(--color-failed)]"
@@ -224,7 +254,7 @@ export default function App() {
         </div>
       )}
 
-      {replay && (
+      {mode === 'orchestrator' && replay && (
         <div className="shrink-0 px-4 py-2 border-b border-[var(--color-line)] bg-[var(--color-surface-2)] flex items-center gap-3 flex-wrap text-[12px]">
           <Badge tone={replay.diff.identical ? 'good' : 'bad'}>
             {replay.diff.identical ? '✓ DIFF IS ZERO' : `${replay.diff.output_diffs.length} DIFFS`}
@@ -239,6 +269,7 @@ export default function App() {
       )}
 
       {/* ------------------------------------------------------------- main */}
+      {mode === 'orchestrator' && (
       <main className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-[1.15fr_1fr] gap-3 p-3">
         <Panel
           title={clarification ? 'Clarify & approve' : 'Agent graph'}
@@ -315,6 +346,7 @@ export default function App() {
           )}
         </Panel>
       </main>
+      )}
     </div>
   )
 }
