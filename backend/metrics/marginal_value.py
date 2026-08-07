@@ -57,7 +57,9 @@ async def run_at_depth(
     store: EventStore, goal: str, depth: int, models: list[str], *, seed: int = 42, completer=None
 ) -> DepthPoint:
     branches = BRANCH_POOL[:depth]
-    graph = build_graph(branches, models, verifier_model=models[-1])
+    # allow_degenerate: a depth-1 graph is the point of the measurement, not a
+    # malformed council response to be repaired.
+    graph = build_graph(branches, models, verifier_model=models[-1], allow_degenerate=True)
     run_id = str(uuid.uuid4())
     await store.create_run(run_id, goal, graph.config_hash, seed, graph.model_dump(), "pending")
 
@@ -118,21 +120,42 @@ async def marginal_value_report(
     def efficiency(p: DepthPoint) -> float:
         return p.quality_per_rupee if (paid and p.quality_per_rupee) else p.quality_per_1k_tokens
 
-    best = max(report.points, key=efficiency)
+    peak = max(efficiency(p) for p in report.points)
+    # Depths often tie on efficiency because each extra agent contributes
+    # proportionally. Among ties, more findings for the same efficiency is
+    # strictly better - reporting the smallest tied depth would tell a team to
+    # drop agents that were costing them nothing.
+    tied = [p for p in report.points if efficiency(p) >= peak - 1e-9]
+    best = max(tied, key=lambda p: (p.unique_findings, -p.depth))
     report.best_depth = best.depth
     largest = max(report.points, key=lambda p: p.depth)
 
     if best.depth < largest.depth:
         gain = largest.unique_findings - best.unique_findings
+        extra = largest.total_tokens - best.total_tokens
+        gain_text = (
+            f"added nothing at all for {extra} extra tokens"
+            if gain <= 0
+            else f"added {gain} unique finding(s) for {extra} extra tokens"
+        )
         report.recommendation = (
             f"Depth {best.depth} is the efficient point. Going to depth {largest.depth} "
-            f"added {gain} unique finding(s) for {largest.total_tokens - best.total_tokens} "
-            f"extra tokens. For this task class our own orchestrator recommends "
+            f"{gain_text}. For this task class our own orchestrator recommends "
             f"{best.depth} agent(s), not {largest.depth}."
         )
+        if len(tied) > 1:
+            report.recommendation += (
+                f" Depths {', '.join(str(p.depth) for p in sorted(tied, key=lambda x: x.depth))} "
+                f"tie on efficiency; {best.depth} is chosen because it finds the most."
+            )
+        if largest.duplicate_work:
+            report.recommendation += (
+                f" Depth {largest.depth} also produced {largest.duplicate_work} "
+                f"duplicate branch pair(s)."
+            )
         if largest.lowest_mig < 0.1:
             report.recommendation += (
-                f" Agent '{largest.lowest_mig_agent}' scored MIG {largest.lowest_mig} "
+                f" Agent '{largest.lowest_mig_agent}' scored MIG {largest.lowest_mig:.2f} "
                 f"at depth {largest.depth} - it added almost nothing."
             )
     else:

@@ -89,11 +89,24 @@ def _branch_agent(bid: str, role: str, tools: list[str], model: str) -> AgentSpe
     )
 
 
-def build_graph(branches: list[dict], models: list[str], verifier_model: str) -> GraphSpec:
+def build_graph(
+    branches: list[dict],
+    models: list[str],
+    verifier_model: str,
+    *,
+    allow_degenerate: bool = False,
+) -> GraphSpec:
     """Assemble the canonical shape: fanout -> N parallel analysts -> verify -> report.
 
     The verify node and at least one parallel branch are invariants, not
-    suggestions - PS requirement 64 names both.
+    suggestions - PS requirement 64 names both. So when the council returns
+    fewer than two usable branches we substitute the default set rather than
+    emit a graph that cannot satisfy the requirement.
+
+    `allow_degenerate` opts out of that substitution. The marginal-value report
+    deliberately builds depth-1 graphs to measure them, and silently widening
+    those to three branches would make the depth sweep compare a graph against
+    itself.
     """
     seen: set[str] = set()
     clean: list[dict] = []
@@ -107,7 +120,7 @@ def build_graph(branches: list[dict], models: list[str], verifier_model: str) ->
             "role": str(b.get("role") or f"Examine the {bid} aspects of the repository."),
             "tools": list(b.get("tools") or ["read_file"]),
         })
-    if len(clean) < 2:
+    if len(clean) < 2 and not allow_degenerate:
         # The council failed to give us a parallel plan. Fall back to the shape
         # the PS requires rather than emitting a single-branch graph.
         log.warning("council returned %d usable branches, using default set", len(clean))
