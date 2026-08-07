@@ -5,17 +5,39 @@ are the three nobody else will have — protect them if time runs short.
 
 **Before you start:**
 
-- `ollama serve` running, `ollama list` shows the models
-- backend up on 7860, browser already open on the **chat** tab
-- `GROQ_API_KEY` set — step 0 depends on the answer feeling instant. Measured
-  on the same question: **2.6s total on Groq, 8.9–25s on a local 3B**, first
-  token 1.9s vs 6.9s
-- ask one throwaway question first so nothing is cold
+- Browser already open on the deployed frontend
+  (`https://sprightly-salmiakki-bb8ed0.netlify.app`), **chat** tab. Backend is
+  Render (`aco-backend-52wf.onrender.com`) - free tier, sleeps after 15 min
+  idle, ~50s to wake. **Load it and ask one throwaway question at least a
+  minute before you go on**, so it's already warm.
+- Model provider is Ollama Cloud by default (`gpt-oss:120b-cloud`), with Groq
+  and Gemini configured too - `/api/models` should list all three. Step 0's
+  "instant" framing is still true (Ollama Cloud first token ~2.5s), just
+  update the specific seconds if you re-measure on the night.
+- ⚠️ **Embeddings-based metrics (Marginal Information Gain, redundancy/overlap,
+  the "89% identical" callout, the whole Pareto table in step 10) are NOT
+  available on the deployed Render backend** - `sentence-transformers` is a
+  ~1GB optional dependency deliberately not shipped on a free-tier box; live
+  it reports `embeddings_available: false` honestly instead of faking a
+  number. It IS installed locally. For steps 0 (overlap row) and 10 (the
+  whole differentiator step), either: (a) run those two specific moments
+  against `localhost:7860` instead of the deployed URL, having pre-warmed it
+  the same way, or (b) show the honest `embeddings_available: false` response
+  live and pivot the line to "we don't fake this number when we haven't paid
+  for the dependency that computes it" - that's arguably a stronger version of
+  the same "we ship the metric that makes us look bad" point the script
+  already makes elsewhere. Decide which before you're on stage, not during.
+- The exact numbers in step 10's Pareto table below are from an earlier
+  architecture (pre-Turso, pre-Ollama Cloud) and are stale. Re-run the
+  four-depth sweep for real before quoting exact numbers, or describe the
+  shape of the finding ("efficiency plateaus, one depth stops paying for
+  itself") without reciting a specific stale number.
 
-**If the network dies mid-demo:** unset `GROQ_API_KEY` and restart. It falls
-back to local Ollama models automatically — verified: `/api/models` drops to
-`["ollama:…"]` and answers still stream, just slower. No code change. Say so out
-loud, provider portability is a graded requirement.
+**If a provider goes down mid-demo:** the council already tolerates one
+provider failing - proven live tonight (a Gemini rate-limit mid-run produced
+an honest `"ok": false, "failed_nodes": [...]` rather than a crash or a fake
+success). Say so out loud if it happens; it's the graceful-degradation
+behavior working as designed, not a bug.
 
 ---
 
@@ -119,8 +141,8 @@ Switch the trace filter to **contract**.
 
 > "Watch the handoffs validate live. `HANDOFF_EMITTED`, then
 > `HANDOFF_VALIDATED`. Every one of those is a real row in one append-only
-> Postgres table — which is also where replay, the metrics, and this viewer all
-> read from. One structure, six requirements."
+> Turso (libSQL) table — which is also where replay, the metrics, and this
+> viewer all read from. One structure, six requirements."
 
 ### 6 · Kill a branch → repair → compensate *(75s)*
 
@@ -260,9 +282,14 @@ Read the recommendation verbatim:
 > serial execution can never do.
 
 **"Is the cost really zero?"**
-> Local models via Ollama, so yes, genuinely zero and recorded as a real zero.
-> That's why the Pareto curve uses findings-per-1k-tokens — dividing by zero
-> rupees would be a flat line.
+> Mostly. Ollama Cloud's free tier and local Ollama are both genuinely $0,
+> recorded as a real zero. Groq/Gemini calls, when the council pulls them in
+> for diversity, carry a small real cost (fractions of a cent per turn -
+> we've seen $0.0005-ish on a real council run tonight) and are tracked
+> honestly too, not zeroed out. That's why the Pareto curve uses
+> findings-per-1k-tokens rather than findings-per-rupee alone — a mixed-cost
+> system needs a denominator that doesn't break when one branch is free and
+> another isn't.
 
 **"What did you cut?"**
 > Workflow version migration, subgraph recursion beyond one level, and stale
@@ -274,9 +301,18 @@ Read the recommendation verbatim:
 
 ## If something breaks on stage
 
-- **Ollama slow/down** → `examples/*.json` are real saved runs; walk the event
-  sequence instead. The story survives.
-- **Supabase unreachable** → same; the examples are the fallback.
+- **Render backend is asleep / slow to wake** → free tier, ~50s cold start.
+  This is why you warm it a minute before going on. If it happens anyway,
+  say so plainly and use the wait to explain the architecture.
+- **A model provider is rate-limited or down** → the engine already handles
+  this - a failed branch shows as a named failure, not a crash, and the run
+  reports `"ok": false` honestly. This is a real feature to point at if it
+  happens, not just a recovery move.
+- **`examples/*.json` are stale** (predate tonight's Turso/Ollama Cloud
+  migration) → note this before using them as a fallback; they still show
+  the right *shape* of a real run, just not current numbers. Regenerate
+  fresh saved runs against the live deployment before demo time if there's
+  a spare 10 minutes.
 - **Council compile is slow** → it makes 4+ model calls. Say "the council is
   deliberating" and use the time to explain anonymous peer ranking.
 - **Never** say something you cannot show. If it does not run, do not claim it.
