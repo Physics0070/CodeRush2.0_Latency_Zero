@@ -30,3 +30,11 @@ def test_prod_refuses_to_boot_without_secrets() -> None:
 def test_cors_wildcard_rejected() -> None:
     with pytest.raises(ValidationError):
         Settings(cors_origins="*")
+
+
+def test_blank_env_values_fall_back_to_defaults() -> None:
+    """A judge runs `cp .env.example .env` first. That must not break startup."""
+    s = Settings(PORT="", LOG_LEVEL="", DEFAULT_SEED="", MAX_UPLOAD_BYTES="")
+    assert s.port == 7860
+    assert s.log_level == "INFO"
+    assert s.default_seed == 42

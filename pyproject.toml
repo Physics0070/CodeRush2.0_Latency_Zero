@@ -17,6 +17,9 @@ ignore = ["S101"]  # assert is the point in tests
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# Repo root on sys.path so `pytest` and `python -m pytest` both resolve
+# `backend.*`. Without this, bare `pytest` (what CI runs) cannot import it.
+pythonpath = ["."]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 addopts = "-q"

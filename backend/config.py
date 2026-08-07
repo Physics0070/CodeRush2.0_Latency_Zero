@@ -6,7 +6,7 @@ are NOT declared here. They are read exclusively by
 returns exactly one module.
 """
 
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -44,6 +44,19 @@ class Settings(BaseSettings):
     rate_limit_auth: str = "5/minute"
     rate_limit_public: str = "30/minute"
     rate_limit_authed: str = "120/minute"
+
+    @model_validator(mode="before")
+    @classmethod
+    def _blank_means_unset(cls, data: Any) -> Any:
+        """`cp .env.example .env` leaves every value blank.
+
+        pydantic reads a blank line as "" rather than unset, which fails eight
+        typed fields before the app can start. Drop blanks so field defaults
+        apply and a fresh clone boots.
+        """
+        if isinstance(data, dict):
+            return {k: v for k, v in data.items() if v != ""}
+        return data
 
     @field_validator("cors_origins")
     @classmethod
