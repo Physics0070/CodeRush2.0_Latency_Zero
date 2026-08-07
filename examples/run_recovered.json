@@ -1,6 +1,6 @@
 {
   "run": {
-    "run_id": "d35b869c-5f12-464b-b205-60042d9d2c79",
+    "run_id": "a108189c-8432-41b8-aab7-da77b0c967f5",
     "goal": "Audit this repository and produce a prioritized remediation report.",
     "config_hash": "ed887d3d0aafa2ad8de0bdea2eeddb9436589766acdc3141ccbba8690ed70c15",
     "seed": 42,
@@ -644,8 +644,8 @@
     "status": "failed",
     "replay_of": null,
     "last_seq": 33,
-    "started_at": "2026-08-07T09:50:05.531626+00:00",
-    "ended_at": "2026-08-07T09:50:08.344819+00:00"
+    "started_at": "2026-08-07T11:29:14.610127+00:00",
+    "ended_at": "2026-08-07T11:29:17.984862+00:00"
   },
   "cost": {
     "tokens_in": 280,
@@ -655,7 +655,7 @@
   },
   "events": [
     {
-      "run_id": "d35b869c-5f12-464b-b205-60042d9d2c79",
+      "run_id": "a108189c-8432-41b8-aab7-da77b0c967f5",
       "seq": 1,
       "event_type": "RUN_START",
       "node_id": null,
@@ -668,10 +668,10 @@
       "tokens_out": 0,
       "cost_usd": 0.0,
       "latency_ms": null,
-      "ts": "2026-08-07T09:50:05.635048+00:00"
+      "ts": "2026-08-07T11:29:14.682748+00:00"
     },
     {
-      "run_id": "d35b869c-5f12-464b-b205-60042d9d2c79",
+      "run_id": "a108189c-8432-41b8-aab7-da77b0c967f5",
       "seq": 2,
       "event_type": "NODE_START",
       "node_id": "clarify",
@@ -683,10 +683,10 @@
       "tokens_out": 0,
       "cost_usd": 0.0,
       "latency_ms": null,
-      "ts": "2026-08-07T09:50:05.871962+00:00"
+      "ts": "2026-08-07T11:29:14.810532+00:00"
     },
     {
-      "run_id": "d35b869c-5f12-464b-b205-60042d9d2c79",
+      "run_id": "a108189c-8432-41b8-aab7-da77b0c967f5",
       "seq": 3,
       "event_type": "NODE_END",
       "node_id": "clarify",
@@ -697,11 +697,11 @@
       "tokens_in": 0,
       "tokens_out": 0,
       "cost_usd": 0.0,
-      "latency_ms": 112,
-      "ts": "2026-08-07T09:50:05.998108+00:00"
+      "latency_ms": 55,
+      "ts": "2026-08-07T11:29:14.875994+00:00"
     },
     {
-      "run_id": "d35b869c-5f12-464b-b205-60042d9d2c79",
+      "run_id": "a108189c-8432-41b8-aab7-da77b0c967f5",
       "seq": 4,
       "event_type": "APPROVAL_REQUESTED",
       "node_id": "approve",
@@ -713,10 +713,10 @@
       "tokens_out": 0,
       "cost_usd": 0.0,
       "latency_ms": null,
-      "ts": "2026-08-07T09:50:06.097061+00:00"
+      "ts": "2026-08-07T11:29:14.934482+00:00"
     },
     {
-      "run_id": "d35b869c-5f12-464b-b205-60042d9d2c79",
+      "run_id": "a108189c-8432-41b8-aab7-da77b0c967f5",
       "seq": 5,
       "event_type": "APPROVAL_GRANTED",
       "node_id": "approve",
@@ -728,10 +728,10 @@
       "tokens_out": 0,
       "cost_usd": 0.0,
       "latency_ms": null,
-      "ts": "2026-08-07T09:50:06.187752+00:00"
+      "ts": "2026-08-07T11:29:15.035849+00:00"
     },
     {
-      "run_id": "d35b869c-5f12-464b-b205-60042d9d2c79",
+      "run_id": "a108189c-8432-41b8-aab7-da77b0c967f5",
       "seq": 6,
       "event_type": "NODE_START",
       "node_id": "fanout",
@@ -743,10 +743,10 @@
       "tokens_out": 0,
       "cost_usd": 0.0,
       "latency_ms": null,
-      "ts": "2026-08-07T09:50:06.2846+00:00"
+      "ts": "2026-08-07T11:29:15.123485+00:00"
     },
     {
-      "run_id": "d35b869c-5f12-464b-b205-60042d9d2c79",
+      "run_id": "a108189c-8432-41b8-aab7-da77b0c967f5",
       "seq": 7,
       "event_type": "NODE_END",
       "node_id": "fanout",
@@ -757,12 +757,44 @@
       "tokens_in": 0,
       "tokens_out": 0,
       "cost_usd": 0.0,
-      "latency_ms": 113,
-      "ts": "2026-08-07T09:50:06.390807+00:00"
+      "latency_ms": 94,
+      "ts": "2026-08-07T11:29:15.249177+00:00"
     },
     {
-      "run_id": "d35b869c-5f12-464b-b205-60042d9d2c79",
+      "run_id": "a108189c-8432-41b8-aab7-da77b0c967f5",
       "seq": 8,
+      "event_type": "NODE_START",
+      "node_id": "security",
+      "agent_id": "security",
+      "payload": {
+        "model": "ollama:llama3.2:3b",
+        "budget_tokens": 4000
+      },
+      "tokens_in": 0,
+      "tokens_out": 0,
+      "cost_usd": 0.0,
+      "latency_ms": null,
+      "ts": "2026-08-07T11:29:15.526759+00:00"
+    },
+    {
+      "run_id": "a108189c-8432-41b8-aab7-da77b0c967f5",
+      "seq": 9,
+      "event_type": "NODE_START",
+      "node_id": "docs",
+      "agent_id": "docs",
+      "payload": {
+        "model": "ollama:llama3.2:3b",
+        "budget_tokens": 4000
+      },
+      "tokens_in": 0,
+      "tokens_out": 0,
+      "cost_usd": 0.0,
+      "latency_ms": null,
+      "ts": "2026-08-07T11:29:15.542082+00:00"
+    },
+    {
+      "run_id": "a108189c-8432-41b8-aab7-da77b0c967f5",
+      "seq": 10,
       "event_type": "NODE_START",
       "node_id": "quality",
       "agent_id": "quality",
@@ -774,79 +806,11 @@
       "tokens_out": 0,
       "cost_usd": 0.0,
       "latency_ms": null,
-      "ts": "2026-08-07T09:50:06.500412+00:00"
+      "ts": "2026-08-07T11:29:15.544763+00:00"
     },
     {
-      "run_id": "d35b869c-5f12-464b-b205-60042d9d2c79",
-      "seq": 9,
-      "event_type": "NODE_START",
-      "node_id": "security",
-      "agent_id": "security",
-      "payload": {
-        "model": "ollama:llama3.2:3b",
-        "budget_tokens": 4000
-      },
-      "tokens_in": 0,
-      "tokens_out": 0,
-      "cost_usd": 0.0,
-      "latency_ms": null,
-      "ts": "2026-08-07T09:50:06.507824+00:00"
-    },
-    {
-      "run_id": "d35b869c-5f12-464b-b205-60042d9d2c79",
-      "seq": 10,
-      "event_type": "NODE_START",
-      "node_id": "docs",
-      "agent_id": "docs",
-      "payload": {
-        "model": "ollama:llama3.2:3b",
-        "budget_tokens": 4000
-      },
-      "tokens_in": 0,
-      "tokens_out": 0,
-      "cost_usd": 0.0,
-      "latency_ms": null,
-      "ts": "2026-08-07T09:50:06.524027+00:00"
-    },
-    {
-      "run_id": "d35b869c-5f12-464b-b205-60042d9d2c79",
+      "run_id": "a108189c-8432-41b8-aab7-da77b0c967f5",
       "seq": 11,
-      "event_type": "TOOL_RESULT",
-      "node_id": "security",
-      "agent_id": "security",
-      "payload": {
-        "text": "{\"findings\": [{\"title\": \"Service key readable from the client bundle\", \"severity\": \"critical\", \"recommendation\": \"Move all Supabase calls behind the API\"}]}",
-        "model": "ollama:llama3.2:3b",
-        "replayed": false,
-        "used_fallback": false
-      },
-      "tokens_in": 140,
-      "tokens_out": 70,
-      "cost_usd": 0.00012,
-      "latency_ms": 50,
-      "ts": "2026-08-07T09:50:06.671773+00:00"
-    },
-    {
-      "run_id": "d35b869c-5f12-464b-b205-60042d9d2c79",
-      "seq": 12,
-      "event_type": "TOOL_RESULT",
-      "node_id": "docs",
-      "agent_id": "docs",
-      "payload": {
-        "text": "the repository looks fine",
-        "model": "ollama:llama3.2:3b",
-        "replayed": false,
-        "used_fallback": false
-      },
-      "tokens_in": 0,
-      "tokens_out": 0,
-      "cost_usd": 0.0,
-      "latency_ms": 0,
-      "ts": "2026-08-07T09:50:06.683771+00:00"
-    },
-    {
-      "run_id": "d35b869c-5f12-464b-b205-60042d9d2c79",
-      "seq": 13,
       "event_type": "TOOL_RESULT",
       "node_id": "quality",
       "agent_id": "quality",
@@ -860,43 +824,47 @@
       "tokens_out": 70,
       "cost_usd": 0.00012,
       "latency_ms": 50,
-      "ts": "2026-08-07T09:50:06.690391+00:00"
+      "ts": "2026-08-07T11:29:15.872051+00:00"
     },
     {
-      "run_id": "d35b869c-5f12-464b-b205-60042d9d2c79",
-      "seq": 14,
-      "event_type": "HANDOFF_EMITTED",
+      "run_id": "a108189c-8432-41b8-aab7-da77b0c967f5",
+      "seq": 12,
+      "event_type": "TOOL_RESULT",
       "node_id": "security",
       "agent_id": "security",
       "payload": {
-        "raw": "{\"findings\": [{\"title\": \"Service key readable from the client bundle\", \"severity\": \"critical\", \"recommendation\": \"Move all Supabase calls behind the API\"}]}",
-        "attempt": 0
+        "text": "{\"findings\": [{\"title\": \"Service key readable from the client bundle\", \"severity\": \"critical\", \"recommendation\": \"Move all Supabase calls behind the API\"}]}",
+        "model": "ollama:llama3.2:3b",
+        "replayed": false,
+        "used_fallback": false
       },
-      "tokens_in": 0,
-      "tokens_out": 0,
-      "cost_usd": 0.0,
-      "latency_ms": null,
-      "ts": "2026-08-07T09:50:06.767761+00:00"
+      "tokens_in": 140,
+      "tokens_out": 70,
+      "cost_usd": 0.00012,
+      "latency_ms": 50,
+      "ts": "2026-08-07T11:29:15.883737+00:00"
     },
     {
-      "run_id": "d35b869c-5f12-464b-b205-60042d9d2c79",
-      "seq": 15,
-      "event_type": "HANDOFF_EMITTED",
+      "run_id": "a108189c-8432-41b8-aab7-da77b0c967f5",
+      "seq": 13,
+      "event_type": "TOOL_RESULT",
       "node_id": "docs",
       "agent_id": "docs",
       "payload": {
-        "raw": "the repository looks fine",
-        "attempt": 0
+        "text": "the repository looks fine",
+        "model": "ollama:llama3.2:3b",
+        "replayed": false,
+        "used_fallback": false
       },
       "tokens_in": 0,
       "tokens_out": 0,
       "cost_usd": 0.0,
-      "latency_ms": null,
-      "ts": "2026-08-07T09:50:06.793786+00:00"
+      "latency_ms": 0,
+      "ts": "2026-08-07T11:29:15.898166+00:00"
     },
     {
-      "run_id": "d35b869c-5f12-464b-b205-60042d9d2c79",
-      "seq": 16,
+      "run_id": "a108189c-8432-41b8-aab7-da77b0c967f5",
+      "seq": 14,
       "event_type": "HANDOFF_EMITTED",
       "node_id": "quality",
       "agent_id": "quality",
@@ -908,53 +876,43 @@
       "tokens_out": 0,
       "cost_usd": 0.0,
       "latency_ms": null,
-      "ts": "2026-08-07T09:50:06.800849+00:00"
+      "ts": "2026-08-07T11:29:15.957539+00:00"
     },
     {
-      "run_id": "d35b869c-5f12-464b-b205-60042d9d2c79",
-      "seq": 17,
-      "event_type": "HANDOFF_VALIDATED",
+      "run_id": "a108189c-8432-41b8-aab7-da77b0c967f5",
+      "seq": 15,
+      "event_type": "HANDOFF_EMITTED",
       "node_id": "security",
       "agent_id": "security",
       "payload": {
-        "attempt": 0,
-        "payload": {
-          "findings": [
-            {
-              "title": "Service key readable from the client bundle",
-              "severity": "critical",
-              "recommendation": "Move all Supabase calls behind the API"
-            }
-          ]
-        }
-      },
-      "tokens_in": 0,
-      "tokens_out": 0,
-      "cost_usd": 0.0,
-      "latency_ms": null,
-      "ts": "2026-08-07T09:50:06.878111+00:00"
-    },
-    {
-      "run_id": "d35b869c-5f12-464b-b205-60042d9d2c79",
-      "seq": 18,
-      "event_type": "HANDOFF_REJECTED",
-      "node_id": "docs",
-      "agent_id": "docs",
-      "payload": {
-        "errors": [
-          "output is not valid JSON: Expecting value (line 1, column 1)"
-        ],
+        "raw": "{\"findings\": [{\"title\": \"Service key readable from the client bundle\", \"severity\": \"critical\", \"recommendation\": \"Move all Supabase calls behind the API\"}]}",
         "attempt": 0
       },
       "tokens_in": 0,
       "tokens_out": 0,
       "cost_usd": 0.0,
       "latency_ms": null,
-      "ts": "2026-08-07T09:50:06.896823+00:00"
+      "ts": "2026-08-07T11:29:15.965498+00:00"
     },
     {
-      "run_id": "d35b869c-5f12-464b-b205-60042d9d2c79",
-      "seq": 19,
+      "run_id": "a108189c-8432-41b8-aab7-da77b0c967f5",
+      "seq": 16,
+      "event_type": "HANDOFF_EMITTED",
+      "node_id": "docs",
+      "agent_id": "docs",
+      "payload": {
+        "raw": "the repository looks fine",
+        "attempt": 0
+      },
+      "tokens_in": 0,
+      "tokens_out": 0,
+      "cost_usd": 0.0,
+      "latency_ms": null,
+      "ts": "2026-08-07T11:29:15.984878+00:00"
+    },
+    {
+      "run_id": "a108189c-8432-41b8-aab7-da77b0c967f5",
+      "seq": 17,
       "event_type": "HANDOFF_VALIDATED",
       "node_id": "quality",
       "agent_id": "quality",
@@ -974,27 +932,53 @@
       "tokens_out": 0,
       "cost_usd": 0.0,
       "latency_ms": null,
-      "ts": "2026-08-07T09:50:06.907645+00:00"
+      "ts": "2026-08-07T11:29:16.022282+00:00"
     },
     {
-      "run_id": "d35b869c-5f12-464b-b205-60042d9d2c79",
-      "seq": 20,
-      "event_type": "NODE_END",
+      "run_id": "a108189c-8432-41b8-aab7-da77b0c967f5",
+      "seq": 18,
+      "event_type": "HANDOFF_VALIDATED",
       "node_id": "security",
       "agent_id": "security",
       "payload": {
-        "ok": true,
-        "repair_attempts": 0
+        "attempt": 0,
+        "payload": {
+          "findings": [
+            {
+              "title": "Service key readable from the client bundle",
+              "severity": "critical",
+              "recommendation": "Move all Supabase calls behind the API"
+            }
+          ]
+        }
       },
       "tokens_in": 0,
       "tokens_out": 0,
       "cost_usd": 0.0,
-      "latency_ms": 499,
-      "ts": "2026-08-07T09:50:06.987621+00:00"
+      "latency_ms": null,
+      "ts": "2026-08-07T11:29:16.058847+00:00"
     },
     {
-      "run_id": "d35b869c-5f12-464b-b205-60042d9d2c79",
-      "seq": 21,
+      "run_id": "a108189c-8432-41b8-aab7-da77b0c967f5",
+      "seq": 19,
+      "event_type": "HANDOFF_REJECTED",
+      "node_id": "docs",
+      "agent_id": "docs",
+      "payload": {
+        "errors": [
+          "output is not valid JSON: Expecting value (line 1, column 1)"
+        ],
+        "attempt": 0
+      },
+      "tokens_in": 0,
+      "tokens_out": 0,
+      "cost_usd": 0.0,
+      "latency_ms": null,
+      "ts": "2026-08-07T11:29:16.065334+00:00"
+    },
+    {
+      "run_id": "a108189c-8432-41b8-aab7-da77b0c967f5",
+      "seq": 20,
       "event_type": "NODE_END",
       "node_id": "quality",
       "agent_id": "quality",
@@ -1005,11 +989,27 @@
       "tokens_in": 0,
       "tokens_out": 0,
       "cost_usd": 0.0,
-      "latency_ms": 530,
-      "ts": "2026-08-07T09:50:07.04747+00:00"
+      "latency_ms": 768,
+      "ts": "2026-08-07T11:29:16.080663+00:00"
     },
     {
-      "run_id": "d35b869c-5f12-464b-b205-60042d9d2c79",
+      "run_id": "a108189c-8432-41b8-aab7-da77b0c967f5",
+      "seq": 21,
+      "event_type": "NODE_END",
+      "node_id": "security",
+      "agent_id": "security",
+      "payload": {
+        "ok": true,
+        "repair_attempts": 0
+      },
+      "tokens_in": 0,
+      "tokens_out": 0,
+      "cost_usd": 0.0,
+      "latency_ms": 810,
+      "ts": "2026-08-07T11:29:16.143392+00:00"
+    },
+    {
+      "run_id": "a108189c-8432-41b8-aab7-da77b0c967f5",
       "seq": 22,
       "event_type": "REPAIR_ATTEMPT",
       "node_id": "docs",
@@ -1025,10 +1025,10 @@
       "tokens_out": 0,
       "cost_usd": 0.0,
       "latency_ms": null,
-      "ts": "2026-08-07T09:50:07.048876+00:00"
+      "ts": "2026-08-07T11:29:16.15333+00:00"
     },
     {
-      "run_id": "d35b869c-5f12-464b-b205-60042d9d2c79",
+      "run_id": "a108189c-8432-41b8-aab7-da77b0c967f5",
       "seq": 23,
       "event_type": "TOOL_RESULT",
       "node_id": "docs",
@@ -1043,10 +1043,10 @@
       "tokens_out": 0,
       "cost_usd": 0.0,
       "latency_ms": 0,
-      "ts": "2026-08-07T09:50:07.209268+00:00"
+      "ts": "2026-08-07T11:29:16.278856+00:00"
     },
     {
-      "run_id": "d35b869c-5f12-464b-b205-60042d9d2c79",
+      "run_id": "a108189c-8432-41b8-aab7-da77b0c967f5",
       "seq": 24,
       "event_type": "HANDOFF_EMITTED",
       "node_id": "docs",
@@ -1059,10 +1059,10 @@
       "tokens_out": 0,
       "cost_usd": 0.0,
       "latency_ms": null,
-      "ts": "2026-08-07T09:50:07.304338+00:00"
+      "ts": "2026-08-07T11:29:16.516178+00:00"
     },
     {
-      "run_id": "d35b869c-5f12-464b-b205-60042d9d2c79",
+      "run_id": "a108189c-8432-41b8-aab7-da77b0c967f5",
       "seq": 25,
       "event_type": "HANDOFF_REJECTED",
       "node_id": "docs",
@@ -1077,10 +1077,10 @@
       "tokens_out": 0,
       "cost_usd": 0.0,
       "latency_ms": null,
-      "ts": "2026-08-07T09:50:07.397678+00:00"
+      "ts": "2026-08-07T11:29:16.577591+00:00"
     },
     {
-      "run_id": "d35b869c-5f12-464b-b205-60042d9d2c79",
+      "run_id": "a108189c-8432-41b8-aab7-da77b0c967f5",
       "seq": 26,
       "event_type": "REPAIR_ATTEMPT",
       "node_id": "docs",
@@ -1096,10 +1096,10 @@
       "tokens_out": 0,
       "cost_usd": 0.0,
       "latency_ms": null,
-      "ts": "2026-08-07T09:50:07.50319+00:00"
+      "ts": "2026-08-07T11:29:16.648763+00:00"
     },
     {
-      "run_id": "d35b869c-5f12-464b-b205-60042d9d2c79",
+      "run_id": "a108189c-8432-41b8-aab7-da77b0c967f5",
       "seq": 27,
       "event_type": "TOOL_RESULT",
       "node_id": "docs",
@@ -1114,10 +1114,10 @@
       "tokens_out": 0,
       "cost_usd": 0.0,
       "latency_ms": 0,
-      "ts": "2026-08-07T09:50:07.659828+00:00"
+      "ts": "2026-08-07T11:29:16.762112+00:00"
     },
     {
-      "run_id": "d35b869c-5f12-464b-b205-60042d9d2c79",
+      "run_id": "a108189c-8432-41b8-aab7-da77b0c967f5",
       "seq": 28,
       "event_type": "HANDOFF_EMITTED",
       "node_id": "docs",
@@ -1130,10 +1130,10 @@
       "tokens_out": 0,
       "cost_usd": 0.0,
       "latency_ms": null,
-      "ts": "2026-08-07T09:50:07.788439+00:00"
+      "ts": "2026-08-07T11:29:17.490211+00:00"
     },
     {
-      "run_id": "d35b869c-5f12-464b-b205-60042d9d2c79",
+      "run_id": "a108189c-8432-41b8-aab7-da77b0c967f5",
       "seq": 29,
       "event_type": "HANDOFF_REJECTED",
       "node_id": "docs",
@@ -1148,10 +1148,10 @@
       "tokens_out": 0,
       "cost_usd": 0.0,
       "latency_ms": null,
-      "ts": "2026-08-07T09:50:07.87654+00:00"
+      "ts": "2026-08-07T11:29:17.554852+00:00"
     },
     {
-      "run_id": "d35b869c-5f12-464b-b205-60042d9d2c79",
+      "run_id": "a108189c-8432-41b8-aab7-da77b0c967f5",
       "seq": 30,
       "event_type": "BRANCH_FAILED",
       "node_id": "docs",
@@ -1167,10 +1167,10 @@
       "tokens_out": 0,
       "cost_usd": 0.0,
       "latency_ms": null,
-      "ts": "2026-08-07T09:50:07.978464+00:00"
+      "ts": "2026-08-07T11:29:17.621811+00:00"
     },
     {
-      "run_id": "d35b869c-5f12-464b-b205-60042d9d2c79",
+      "run_id": "a108189c-8432-41b8-aab7-da77b0c967f5",
       "seq": 31,
       "event_type": "NODE_END",
       "node_id": "docs",
@@ -1182,11 +1182,11 @@
       "tokens_in": 0,
       "tokens_out": 0,
       "cost_usd": 0.0,
-      "latency_ms": 1585,
-      "ts": "2026-08-07T09:50:08.072106+00:00"
+      "latency_ms": 2374,
+      "ts": "2026-08-07T11:29:17.758809+00:00"
     },
     {
-      "run_id": "d35b869c-5f12-464b-b205-60042d9d2c79",
+      "run_id": "a108189c-8432-41b8-aab7-da77b0c967f5",
       "seq": 32,
       "event_type": "COMPENSATE",
       "node_id": "comp_docs",
@@ -1198,10 +1198,10 @@
       "tokens_out": 0,
       "cost_usd": 0.0,
       "latency_ms": null,
-      "ts": "2026-08-07T09:50:08.155509+00:00"
+      "ts": "2026-08-07T11:29:17.815874+00:00"
     },
     {
-      "run_id": "d35b869c-5f12-464b-b205-60042d9d2c79",
+      "run_id": "a108189c-8432-41b8-aab7-da77b0c967f5",
       "seq": 33,
       "event_type": "RUN_END",
       "node_id": null,
@@ -1214,15 +1214,15 @@
         "failed_nodes": [
           "docs"
         ],
-        "wall_clock_ms": 2382,
-        "latency_sum_ms": 2839,
-        "parallel_efficiency": 1.192
+        "wall_clock_ms": 3062,
+        "latency_sum_ms": 4101,
+        "parallel_efficiency": 1.339
       },
       "tokens_in": 0,
       "tokens_out": 0,
       "cost_usd": 0.0,
       "latency_ms": null,
-      "ts": "2026-08-07T09:50:08.250264+00:00"
+      "ts": "2026-08-07T11:29:17.890637+00:00"
     }
   ]
 }

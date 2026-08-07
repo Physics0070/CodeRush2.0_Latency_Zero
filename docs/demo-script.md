@@ -139,17 +139,33 @@ Metrics tab.
 > "Every team here will tell you more agents is better. We measured it.
 >
 > Marginal Information Gain: one minus the maximum cosine similarity to any
-> other agent. This bar is red — that agent scored below 0.1. It produced almost
-> nothing the others didn't already have.
+> other agent. These bars are red — those agents scored **0.08**. They produced
+> almost nothing the others didn't already have.
 >
-> Redundancy heatmap: this pair exceeded the 0.75 duplicate threshold. They duplicated each
-> other's work.
+> Redundancy heatmap: these pairs exceeded the 0.75 duplicate threshold. Five
+> findings were reported; **three** were actually unique. The rest were the same
+> issue in different words."
+
+Then the Pareto curve. **Measured numbers from a real four-depth sweep:**
+
+| depth | agents | unique findings | tokens | findings/1k | duplicate pairs |
+|---|---|---|---|---|---|
+| 1 | security, verify | 2 | 420 | 4.76 | 0 |
+| 2 | + quality | 3 | 630 | 4.76 | 0 |
+| 3 | + docs | 4 | 840 | 4.76 | 0 |
+| **4** | **+ tests** | **4** | **1050** | **3.81** | **1** |
+
+Read the recommendation verbatim:
+
+> *"Depth 3 is the efficient point. Going to depth 4 added nothing at all for 210
+> extra tokens. For this task class our own orchestrator recommends 3 agents,
+> not 4. Depths 1, 2, 3 tie on efficiency; 3 is chosen because it finds the most.
+> Depth 4 also produced 1 duplicate branch pair."*
+
+> "Note it isn't just saying 'use fewer agents' — it says depths 1 through 3 tie
+> on efficiency and picks 3 because it finds the most. Then it names exactly
+> where the fourth agent stopped paying for itself.
 >
-> And the Pareto curve — same task at graph depth 1 through 4."
-
-Read the recommendation verbatim.
-
-> "Our own orchestrator is telling us to use fewer agents for this task class.
 > We built the thing that argues against our own headline feature, because a
 > report that can only ever say 'more agents is better' is marketing."
 

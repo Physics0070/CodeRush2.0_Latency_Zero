@@ -1,6 +1,6 @@
 {
   "run": {
-    "run_id": "b72a1cec-02f4-4c6e-b5cf-897bab37a632",
+    "run_id": "5a0dd4ec-f20d-4cff-b00a-700b2214569c",
     "goal": "Red Agent demonstration",
     "config_hash": "red-demo",
     "seed": 42,
@@ -8,8 +8,8 @@
     "status": "done",
     "replay_of": null,
     "last_seq": 4,
-    "started_at": "2026-08-07T09:50:08.43713+00:00",
-    "ended_at": "2026-08-07T09:50:08.921617+00:00"
+    "started_at": "2026-08-07T11:29:18.070199+00:00",
+    "ended_at": "2026-08-07T11:29:18.824133+00:00"
   },
   "cost": {
     "tokens_in": 0,
@@ -19,7 +19,7 @@
   },
   "events": [
     {
-      "run_id": "b72a1cec-02f4-4c6e-b5cf-897bab37a632",
+      "run_id": "5a0dd4ec-f20d-4cff-b00a-700b2214569c",
       "seq": 1,
       "event_type": "RUN_START",
       "node_id": null,
@@ -31,10 +31,10 @@
       "tokens_out": 0,
       "cost_usd": 0.0,
       "latency_ms": null,
-      "ts": "2026-08-07T09:50:08.533479+00:00"
+      "ts": "2026-08-07T11:29:18.229521+00:00"
     },
     {
-      "run_id": "b72a1cec-02f4-4c6e-b5cf-897bab37a632",
+      "run_id": "5a0dd4ec-f20d-4cff-b00a-700b2214569c",
       "seq": 2,
       "event_type": "TOOL_BLOCKED",
       "node_id": "red",
@@ -55,10 +55,10 @@
       "tokens_out": 0,
       "cost_usd": 0.0,
       "latency_ms": null,
-      "ts": "2026-08-07T09:50:08.620843+00:00"
+      "ts": "2026-08-07T11:29:18.288529+00:00"
     },
     {
-      "run_id": "b72a1cec-02f4-4c6e-b5cf-897bab37a632",
+      "run_id": "5a0dd4ec-f20d-4cff-b00a-700b2214569c",
       "seq": 3,
       "event_type": "INJECTION_BLOCKED",
       "node_id": "writer",
@@ -94,10 +94,10 @@
       "tokens_out": 0,
       "cost_usd": 0.0,
       "latency_ms": null,
-      "ts": "2026-08-07T09:50:08.736972+00:00"
+      "ts": "2026-08-07T11:29:18.420094+00:00"
     },
     {
-      "run_id": "b72a1cec-02f4-4c6e-b5cf-897bab37a632",
+      "run_id": "5a0dd4ec-f20d-4cff-b00a-700b2214569c",
       "seq": 4,
       "event_type": "RUN_END",
       "node_id": null,
@@ -110,7 +110,7 @@
       "tokens_out": 0,
       "cost_usd": 0.0,
       "latency_ms": null,
-      "ts": "2026-08-07T09:50:08.830184+00:00"
+      "ts": "2026-08-07T11:29:18.585964+00:00"
     }
   ]
 }
