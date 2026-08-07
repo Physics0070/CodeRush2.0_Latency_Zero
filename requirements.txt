@@ -1,36 +1,41 @@
 # Agent Council Orchestrator - backend dependencies
 # Python 3.11+ (torch/sentence-transformers have no 3.13/3.14 wheels yet).
+# Versions current as of 2026-08-07 and audited clean with `pip-audit --strict`.
 
 # --- web layer ---
-fastapi==0.115.6
-uvicorn[standard]==0.34.0
-pydantic==2.10.4
-pydantic-settings==2.7.0
-python-multipart==0.0.20
+fastapi==0.141.1
+uvicorn[standard]==0.52.1
+pydantic==2.13.4
+pydantic-settings==2.14.2
+python-multipart==0.0.32
 
 # --- outbound HTTP for provider adapters (block 2) ---
 httpx==0.28.1
 
 # --- the graded core: handoff schema validation (block 3) ---
-jsonschema==4.23.0
+jsonschema==4.26.0
 
 # --- persistence: single source of truth is Supabase Postgres (block 1) ---
-supabase==2.11.0
+supabase==2.31.0
 
 # --- security, written inline not retrofitted ---
-slowapi==0.1.9
+slowapi==0.1.10
 python-magic-bin==0.4.14; sys_platform == "win32"
 python-magic==0.4.27; sys_platform != "win32"
-PyJWT==2.10.1
+PyJWT==2.13.0
 
 # --- honest metrics: local embeddings, zero cost (block 8) ---
-sentence-transformers==3.3.1
+# Pin torch explicitly so pip-audit can see it. Install the cpu build first to
+# avoid pulling ~2GB of cuda wheels (the Dockerfile and CI both do this):
+#   pip install torch==2.13.0 --index-url https://download.pytorch.org/whl/cpu
+torch==2.13.0
+sentence-transformers==5.7.0
 
 # --- real benchmark data: SWE-bench Verified (block 7) ---
-datasets==3.2.0
+datasets==5.0.1
 
 # --- dev / CI ---
-pytest==8.3.4
-pytest-asyncio==0.25.0
-ruff==0.8.6
-pip-audit==2.7.3
+pytest==9.1.1
+pytest-asyncio==1.4.0
+ruff==0.16.1
+pip-audit==2.10.1
