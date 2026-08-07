@@ -269,12 +269,8 @@ async def resume(run_id: str) -> dict:
 async def list_runs(limit: int = 25) -> dict:
     limit = max(1, min(limit, 100))
     async with EventStore() as store:
-        r = await store._request(
-            "GET", "/runs",
-            params={"select": "run_id,goal,status,config_hash,seed,replay_of,started_at,ended_at",
-                    "order": "started_at.desc", "limit": str(limit)},
-        )
-        return {"runs": r.json()}
+        rows = await store.list_runs(limit)
+        return {"runs": [r.model_dump() for r in rows]}
 
 
 @router.get("/runs/{run_id}")

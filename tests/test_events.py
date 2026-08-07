@@ -1,9 +1,10 @@
-"""Block 1 verification against the real Supabase project.
+"""Block 1 verification against the real Turso database.
 
 The load-bearing assertion is the concurrency one: five appends fired at once
 must produce seq 1..5 with no gaps and no duplicates. A client-side
 `SELECT MAX(seq)+1` passes this test serially and fails it concurrently, which
-is exactly why append goes through the SQL function.
+is exactly why append goes through the lock-guarded UPDATE...RETURNING path in
+backend/events/store.py rather than a naive read-then-write.
 """
 
 import asyncio
@@ -15,8 +16,8 @@ from backend.config import settings
 from backend.events import EventStore, EventType
 
 pytestmark = pytest.mark.skipif(
-    not (settings.supabase_url and settings.supabase_service_key),
-    reason="SUPABASE_URL / SUPABASE_SERVICE_KEY not configured",
+    not (settings.turso_database_url and settings.turso_auth_token),
+    reason="TURSO_DATABASE_URL / TURSO_AUTH_TOKEN not configured",
 )
 
 GRAPH = {"version": 1, "nodes": [], "edges": []}
@@ -77,10 +78,15 @@ async def test_events_are_append_only(store, run_id):
     from backend.events import EventStoreError
 
     with pytest.raises(EventStoreError):
-        await store._request(
-            "PATCH", "/events",
-            params={"run_id": f"eq.{run_id}", "seq": "eq.1"},
-            json={"event_type": "TAMPERED"},
+        await store._execute(
+            "UPDATE events SET event_type = ? WHERE run_id = ? AND seq = ?",
+            ["TAMPERED", run_id, 1],
+        )
+
+    with pytest.raises(EventStoreError):
+        await store._execute(
+            "DELETE FROM events WHERE run_id = ? AND seq = ?",
+            [run_id, 1],
         )
 
 

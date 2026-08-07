@@ -18,7 +18,7 @@ from backend.events import EventStore, EventType
 from backend.providers.base import Completion
 
 pytestmark = pytest.mark.skipif(
-    not (settings.supabase_url and settings.supabase_service_key), reason="supabase not configured"
+    not (settings.turso_database_url and settings.turso_auth_token), reason="turso not configured"
 )
 
 # Functional tests below only need a branch to take *some* time, so keep this
@@ -27,7 +27,7 @@ BRANCH_DELAY = 0.3
 
 # Parallel Efficiency is measured separately, at a realistic branch duration.
 #
-# Every event append is a network round trip to Supabase (~150-400ms from here),
+# Every event append is a network round trip to Turso (~150-400ms from here),
 # and a node writes five of them. That fixed cost lands in wall clock but not in
 # node latency, so it dilutes PE for short nodes: 0.6s branches measured 1.89 and
 # 2.0s branches measured 1.976 - both under 2.0 despite the branches provably

@@ -52,8 +52,8 @@ cat <<EOF
 ==> pushed. Now, in the Space UI:
 
   Settings -> Variables and secrets, add as SECRETS (not variables):
-    SUPABASE_URL
-    SUPABASE_SERVICE_KEY
+    TURSO_DATABASE_URL
+    TURSO_AUTH_TOKEN
     SECRET_KEY
     GROQ_API_KEY          <- at least one of these two is required; the app
     GEMINI_API_KEY        <- has no local-model fallback on a Space
@@ -61,5 +61,5 @@ cat <<EOF
   Then watch the build. When it is green:
     curl https://${USER}-${SPACE}.hf.space/health
 
-Rotate SUPABASE_SERVICE_KEY and SECRET_KEY before making the Space public.
+Rotate TURSO_AUTH_TOKEN and SECRET_KEY before making the Space public.
 EOF

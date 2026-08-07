@@ -10,7 +10,7 @@ from backend.permissions import CapabilityGuard, screen, screen_payload
 from backend.permissions.red_agent import POISONED_HANDOFF, RED_AGENT
 
 pytestmark = pytest.mark.skipif(
-    not (settings.supabase_url and settings.supabase_service_key), reason="supabase not configured"
+    not (settings.turso_database_url and settings.turso_auth_token), reason="turso not configured"
 )
 
 

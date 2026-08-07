@@ -78,8 +78,9 @@ Full detail: [docs/architecture.md](docs/architecture.md).
 
 ## Setup
 
-Prerequisites: **Python 3.11+**, **Node 20+**, and [Ollama](https://ollama.com)
-for local models.
+Prerequisites: **Python 3.11+**, **Node 20+**, a Groq and/or Gemini API key,
+and a [Turso](https://turso.tech) database. [Ollama](https://ollama.com) is
+optional, for local models during development only.
 
 ```bash
 git clone https://github.com/Physics0070/CodeRush2.0_Latency_Zero.git
@@ -95,26 +96,26 @@ pip install -r requirements.txt
 pip install -r requirements-embeddings.txt \
     --extra-index-url https://download.pytorch.org/whl/cpu
 
-# 2. Local models (free, no API key)
-ollama pull llama3.2:3b
-ollama pull qwen2.5:7b
+# 2. Configuration
+cp .env.example .env
+# fill in TURSO_DATABASE_URL, TURSO_AUTH_TOKEN, and GROQ_API_KEY and/or
+# GEMINI_API_KEY - the chat endpoint 503s naming the missing variable
+# if neither hosted key is set
 
-# 3. Configuration
-cp .env.example .env                 # then fill in SUPABASE_URL + SUPABASE_SERVICE_KEY
+# 3. Database
+turso db shell <db-name> < migrations/001_events.sql
 
-# 4. Database — paste migrations/001_events.sql into the Supabase SQL editor
-
-# 5. Frontend
+# 4. Frontend
 cd frontend && npm install && npm run build && cd ..
 
-# 6. Run
+# 5. Run
 uvicorn backend.main:app --host 0.0.0.0 --port 7860
 ```
 
 Open <http://localhost:7860>.
 
 > Blank values in `.env` fall back to defaults, so `cp .env.example .env` boots
-> without editing anything except the two Supabase keys.
+> without editing anything except the Turso and model-provider keys.
 
 ### Troubleshooting
 
@@ -155,21 +156,22 @@ that resolves on Windows can be unsatisfiable in a linux container.
 root, not from inside `backend/`. `pytest` reads `pythonpath = ["."]` from
 `pyproject.toml`.
 
-**Ollama connection refused.** Start it (`ollama serve`) and confirm the models
-are present with `ollama list`.
+**Ollama connection refused.** Only relevant if you are running local models
+for development. Start it (`ollama serve`) and confirm the models are present
+with `ollama list`. Not required otherwise - it is not on the default path.
 
-**Tests skip with "supabase not configured".** `.env` is missing
-`SUPABASE_URL` / `SUPABASE_SERVICE_KEY`, or the migration has not been applied.
+**Tests skip with "turso not configured".** `.env` is missing
+`TURSO_DATABASE_URL` / `TURSO_AUTH_TOKEN`, or the migration has not been applied.
 
 ### Environment
 
 | Variable | Required | Default | Purpose |
 |---|---|---|---|
-| `SUPABASE_URL` | yes | — | Event log, runs, artifacts |
-| `SUPABASE_SERVICE_KEY` | yes | — | Server-side only, never sent to the browser |
-| `OLLAMA_BASE_URL` | no | `http://localhost:11434` | Local models |
-| `GROQ_API_KEY` | no | — | Optional faster council member |
-| `GEMINI_API_KEY` | no | — | Optional council member |
+| `TURSO_DATABASE_URL` | yes | — | Event log, runs, artifacts |
+| `TURSO_AUTH_TOKEN` | yes | — | Server-side only, never sent to the browser |
+| `GROQ_API_KEY` | one of these two | — | Answers and council members |
+| `GEMINI_API_KEY` | one of these two | — | Answers and council members |
+| `OLLAMA_BASE_URL` | no | `http://localhost:11434` | Local models, dev only |
 | `MAX_REPAIR_ATTEMPTS` | no | `2` | Repair retries before a branch fails |
 | `DEFAULT_SEED` | no | `42` | Recorded per run; required for replay |
 | `DEFAULT_BUDGET_TOKENS` | no | `8000` | Engine-enforced, per agent |

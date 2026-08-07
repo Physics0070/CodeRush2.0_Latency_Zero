@@ -19,7 +19,7 @@ from backend.council import (
 from backend.events import EventStore, EventType
 
 pytestmark = pytest.mark.skipif(
-    not (settings.supabase_url and settings.supabase_service_key), reason="supabase not configured"
+    not (settings.turso_database_url and settings.turso_auth_token), reason="turso not configured"
 )
 
 MEMBERS = ["ollama:llama3.2:3b", "ollama:qwen2.5:7b"]

@@ -13,7 +13,31 @@ is not.
 | torch + sentence-transformers | ~1 GB installed. Vercel's bundle limit is 250 MB unzipped. |
 | Ollama local models | Needs several GB resident on a host that stays up. |
 
-So there are two supported shapes.
+So there are three supported shapes.
+
+---
+
+## Option C — Render, no Docker (what is actually deployed)
+
+Two free Render services, no Dockerfile involved: a native Python web service
+for the backend, a static site for the built frontend. `render.yaml` at the
+repo root defines both - connect the repo in the Render dashboard, "New +
+Blueprint", and it provisions them from that file.
+
+- **Backend** (`aco-backend`): `runtime: python`, `pip install -r
+  requirements.txt`, `uvicorn backend.main:app --host 0.0.0.0 --port $PORT`.
+  A real persistent process, not a serverless function, so the SSE stream
+  holds open for as long as an answer takes. Free tier sleeps after 15 minutes
+  idle, ~1 minute cold start on the next request.
+- **Frontend** (`aco-frontend`): `runtime: static`, `npm ci && npm run build`
+  in `frontend/`, published from `frontend/dist`. Free, no sleep, served from
+  Render's CDN. `VITE_API_BASE` points it at the backend service's URL - the
+  same split-hosting mechanism Option B below uses.
+
+Secrets go in the Render dashboard per service, never in `render.yaml`
+(`sync: false` there means "prompt me, don't commit it"):
+`TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN`, `SECRET_KEY`, and at least one of
+`GROQ_API_KEY` / `GEMINI_API_KEY`.
 
 ---
 
@@ -90,9 +114,12 @@ hosted providers answer — which is also the situation on HF Spaces.
 
 ### Hugging Face Spaces
 
-1. New Space → SDK **Docker** → hardware **CPU basic (free)**
+1. New Space → SDK **Docker** → hardware **CPU basic (free)**. Note: some
+   accounts now require a paid plan for Docker/Gradio Spaces - Static Spaces
+   stay free for everyone. Check before relying on this path; Option C above
+   needs no such check.
 2. Settings → *Variables and secrets*. Add as **secrets**, not variables:
-   `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`, `SECRET_KEY`, and `GROQ_API_KEY`
+   `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN`, `SECRET_KEY`, and `GROQ_API_KEY`
 3. `git remote add space https://huggingface.co/spaces/<user>/<space>`
 4. `git push space main`
 5. Watch the build to completion, then `curl https://<user>-<space>.hf.space/health`
@@ -166,15 +193,16 @@ does not, the run still completes — the log is in Postgres, and
 
 | Variable | Where | Notes |
 |---|---|---|
-| `SUPABASE_URL` | backend | Required |
-| `SUPABASE_SERVICE_KEY` | backend | **Secret.** Server-side only, never in the bundle |
+| `TURSO_DATABASE_URL` | backend | Required |
+| `TURSO_AUTH_TOKEN` | backend | **Secret.** Server-side only, never in the bundle |
 | `SECRET_KEY` | backend | Prod refuses to boot without it |
-| `GROQ_API_KEY` | backend | **Secret.** Needed on any host without Ollama |
+| `GROQ_API_KEY` | backend | **Secret.** At least one hosted key is required - no local-model fallback in prod |
+| `GEMINI_API_KEY` | backend | **Secret.** The other half of the "at least one" above |
 | `CORS_ORIGINS` | backend | Explicit list; `*` is rejected |
 | `APP_ENV=prod` | backend | Disables `/docs` |
 | `VITE_API_BASE` | frontend | Blank for single-origin; full URL for split |
 
-Rotate `SUPABASE_SERVICE_KEY` and `SECRET_KEY` before any public deployment.
+Rotate `TURSO_AUTH_TOKEN` and `SECRET_KEY` before any public deployment.
 
 ---
 

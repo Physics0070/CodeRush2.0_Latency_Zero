@@ -5,8 +5,10 @@ drives a real local model so the repair path is proven against an actual LLM
 rather than only against a fixture.
 """
 
+import os
 import uuid
 
+import httpx
 import pytest
 
 from backend.config import settings
@@ -14,9 +16,21 @@ from backend.events import EventStore, EventType
 from backend.handoff import artifact_store, repair_loop, validate
 
 pytestmark = pytest.mark.skipif(
-    not (settings.supabase_url and settings.supabase_service_key),
-    reason="supabase not configured",
+    not (settings.turso_database_url and settings.turso_auth_token),
+    reason="turso not configured",
 )
+
+
+def _ollama_reachable() -> bool:
+    """Ollama is dev-only now, not the default path (see backend/api/routes.py
+    _default_models), so a test that needs a live one must check rather than
+    assume - CI and a from-scratch clone have no reason to have it running."""
+    base = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434")
+    try:
+        httpx.get(f"{base}/api/tags", timeout=2.0)
+        return True
+    except httpx.HTTPError:
+        return False
 
 FINDING_SCHEMA = {
     "type": "object",
@@ -140,6 +154,7 @@ async def test_artifact_carries_provenance(store, run_id):
 # ------------------------------------------------- real model, not a fixture
 
 
+@pytest.mark.skipif(not _ollama_reachable(), reason="ollama not running locally")
 async def test_repair_loop_against_a_real_local_model(store, run_id):
     """Same loop, driven by ollama. Proves the contract holds against an LLM."""
     from backend.providers import complete

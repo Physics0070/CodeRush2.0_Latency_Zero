@@ -41,28 +41,20 @@ async def put(
     # a live key crashes here rather than being written down.
     assert_no_key_in(body)
 
-    row = {
-        "run_id": run_id,
-        "seq": seq,
-        "written_by": written_by,
-        "node_id": node_id,
-        "content": content,
-    }
+    storage_path = None
     if len(body) > INLINE_LIMIT_BYTES:
-        # TODO(block-12): push oversized blobs to Supabase Storage and set
+        # TODO(block-12): push oversized blobs to object storage and set
         # storage_path. Not yet exercised - no artifact in the demo graph gets
         # near 200KB, and an untested upload path is worse than an honest gap.
-        row["content"] = {"truncated": True, "bytes": len(body)}
-        row["storage_path"] = None
+        content = {"truncated": True, "bytes": len(body)}
 
-    r = await store._request(
-        "POST", "/artifacts", json=row, headers={"Prefer": "return=representation"}
+    row = await store.put_artifact(
+        run_id, seq=seq, written_by=written_by, content=content,
+        node_id=node_id, storage_path=storage_path,
     )
-    return Artifact(**r.json()[0])
+    return Artifact(**row)
 
 
 async def for_run(store: EventStore, run_id: str) -> list[Artifact]:
-    r = await store._request(
-        "GET", "/artifacts", params={"run_id": f"eq.{run_id}", "select": "*", "order": "seq.asc"}
-    )
-    return [Artifact(**x) for x in r.json()]
+    rows = await store.list_artifacts(run_id)
+    return [Artifact(**x) for x in rows]

@@ -18,8 +18,8 @@ httpx==0.28.1
 # --- the graded core: handoff schema validation (block 3) ---
 jsonschema==4.26.0
 
-# --- persistence: single source of truth is Supabase Postgres (block 1) ---
-supabase==2.31.0
+# --- persistence: single source of truth is Turso / libSQL (block 1) ---
+turso-serverless==0.1.0
 
 # --- security, written inline not retrofitted ---
 slowapi==0.1.10

@@ -1,0 +1,45 @@
+version: 1
+
+services:
+  # FastAPI backend, native Python - no Dockerfile. A free web service is a
+  # real persistent process (not a serverless function), so the SSE chat
+  # stream holds open for as long as an answer takes. It sleeps after 15
+  # minutes idle and takes ~1 minute to wake on the next request.
+  - type: web
+    name: aco-backend
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn backend.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: CORS_ORIGINS
+        value: https://aco-frontend.onrender.com
+      - key: TURSO_DATABASE_URL
+        sync: false
+      - key: TURSO_AUTH_TOKEN
+        sync: false
+      - key: SECRET_KEY
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+
+  # Built React bundle on Render's CDN - free, no sleep, no compute. Points at
+  # the backend above via VITE_API_BASE, which api.ts already supports for
+  # exactly this split-hosting shape.
+  - type: web
+    name: aco-frontend
+    runtime: static
+    buildCommand: cd frontend && npm ci && npm run build
+    staticPublishPath: frontend/dist
+    envVars:
+      - key: VITE_API_BASE
+        value: https://aco-backend.onrender.com
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html

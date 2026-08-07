@@ -21,8 +21,8 @@ class Settings(BaseSettings):
     port: int = 7860  # HF Spaces hardcodes this. Do not change.
 
     # ---------- persistence ----------
-    supabase_url: str = ""
-    supabase_service_key: str = ""
+    turso_database_url: str = ""
+    turso_auth_token: str = ""
 
     # ---------- execution contract ----------
     max_repair_attempts: int = Field(default=2, ge=0, le=10)
@@ -78,7 +78,7 @@ class Settings(BaseSettings):
         if self.is_prod:
             missing = [
                 name
-                for name in ("secret_key", "supabase_url", "supabase_service_key")
+                for name in ("secret_key", "turso_database_url", "turso_auth_token")
                 if not getattr(self, name)
             ]
             if missing:

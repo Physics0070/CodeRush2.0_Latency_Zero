@@ -14,7 +14,7 @@ from backend.providers.base import Completion
 from backend.replay import replay_run
 
 pytestmark = pytest.mark.skipif(
-    not (settings.supabase_url and settings.supabase_service_key), reason="supabase not configured"
+    not (settings.turso_database_url and settings.turso_auth_token), reason="turso not configured"
 )
 
 MODELS = ["ollama:llama3.2:3b", "ollama:qwen2.5:7b"]
@@ -119,9 +119,9 @@ async def test_replay_serves_from_the_log_not_the_provider(store):
 async def test_tampered_graph_spec_is_refused(store):
     """A replay that silently accepted a mutated spec would fake a zero diff."""
     rid, graph, _ = await _run(store, BRANCHES3)
-    await store._request(
-        "PATCH", "/runs", params={"run_id": f"eq.{rid}"},
-        json={"config_hash": "0" * 64},
+    await store._execute(
+        "UPDATE runs SET config_hash = ? WHERE run_id = ?",
+        ["0" * 64, rid],
     )
     with pytest.raises(ValueError, match="config_hash mismatch"):
         await replay_run(store, rid)

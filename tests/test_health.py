@@ -24,7 +24,7 @@ def test_health_leaks_no_configuration() -> None:
 def test_prod_refuses_to_boot_without_secrets() -> None:
     """Prod must fail loudly at startup, not fall back to a shipped default."""
     with pytest.raises(ValidationError, match="missing required prod settings"):
-        Settings(app_env="prod", secret_key="", supabase_url="", supabase_service_key="")
+        Settings(app_env="prod", secret_key="", turso_database_url="", turso_auth_token="")
 
 
 def test_cors_wildcard_rejected() -> None:
