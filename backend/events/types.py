@@ -44,6 +44,12 @@ class EventType(StrEnum):
     MEMORY_WRITE = "MEMORY_WRITE"
     MEMORY_READ = "MEMORY_READ"
     MEMORY_EVICTED = "MEMORY_EVICTED"
+    # Workflow DNA (advisory intelligence layer, added on top of the
+    # existing engine — never required for a run to proceed). Logged as
+    # regular events, same as everything else, per this file's own rule:
+    # "no state change happens anywhere without an event row."
+    DNA_PREDICTED = "DNA_PREDICTED"  # pre-execution fitness prediction (+ mutation suggestion, if any)
+    DNA_RECORDED = "DNA_RECORDED"    # post-execution actual fitness, written to Workflow DNA history
 
 
 class Event(BaseModel):
