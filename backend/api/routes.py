@@ -24,6 +24,7 @@ from backend.engine.migrations import migrate
 from backend.events import EventStore, EventType
 from backend.permissions.red_agent import red_agent_graph
 from backend.providers.secret_broker import configured_providers
+from backend.workflow_dna.orchestrator_hooks import predict_and_log, record_and_log
 
 log = logging.getLogger("aco.api")
 router = APIRouter(prefix="/api")
@@ -255,13 +256,21 @@ async def start_run(req: RunRequest) -> dict:
         )
         await store.append(run_id, EventType.GRAPH_APPROVED,
                            payload={"config_hash": graph.config_hash})
+        # Workflow DNA: advisory pre-execution fitness prediction, logged as
+        # its own event. Never blocks or alters this run — see
+        # backend/workflow_dna/orchestrator_hooks.py.
+        dna_decision = await predict_and_log(store, graph, run_id)
+
+    predicted_fitness = dna_decision.original.predicted_fitness if dna_decision else None
 
     async def _execute():
         async with EventStore() as s:
             try:
-                await Executor(
+                result = await Executor(
                     s, graph, run_id, seed=req.seed, approvals=set(req.approvals)
                 ).run()
+                # Workflow DNA: record the real outcome for future predictions.
+                await record_and_log(s, graph, run_id, result, predicted_fitness)
             except Exception:
                 log.exception("run %s crashed", run_id)
                 await s.set_run_status(run_id, "failed", ended=True)
@@ -382,6 +391,19 @@ async def metrics(run_id: str) -> dict:
         if await store.get_run(run_id) is None:
             raise HTTPException(status_code=404, detail="unknown run")
         return (await compute(store, run_id)).model_dump()
+
+
+@router.get("/workflow-dna/history")
+async def workflow_dna_history(limit: int = 20) -> dict:
+    """Recent Workflow DNA executions, newest first — powers the frontend's
+    Evolution History panel. Read-only, entirely separate from the main
+    event log; safe to call even if no run has ever used Workflow DNA yet
+    (returns an empty list)."""
+    from backend.workflow_dna.history.repository import WorkflowHistoryRepository
+
+    repo = WorkflowHistoryRepository()
+    records = repo.list_recent(limit=limit)
+    return {"executions": [r.to_dict() for r in records]}
 
 
 @router.post("/runs/{run_id}/replay")

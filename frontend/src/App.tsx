@@ -9,6 +9,7 @@ import { ClarifyPanel, type Clarification } from './ClarifyPanel'
 import { GraphCanvas, StatusLegend, type NodeStatus } from './GraphCanvas'
 import { MetricsPanel } from './MetricsPanel'
 import { TraceViewer } from './TraceViewer'
+import { WorkflowDNAPanel } from './WorkflowDNAPanel'
 import { Badge, Button, Empty, Panel, SkeletonRows, StepRail } from './ui'
 
 const DEMO_GOAL = 'Audit this repository and produce a prioritized remediation report.'
@@ -47,7 +48,7 @@ export default function App() {
   const [selected, setSelected] = useState<string | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [tab, setTab] = useState<'trace' | 'metrics'>('trace')
+  const [tab, setTab] = useState<'trace' | 'metrics' | 'dna'>('trace')
   // Chat is the default surface: the product answers questions, and the
   // orchestrator view explains how. The old flow is unchanged behind the tab.
   const [mode, setMode] = useState<'chat' | 'orchestrator'>('chat')
@@ -307,16 +308,18 @@ export default function App() {
         </Panel>
 
         <Panel
-          title={tab === 'trace' ? 'Live trace' : 'Honest metrics'}
+          title={tab === 'trace' ? 'Live trace' : tab === 'metrics' ? 'Honest metrics' : 'Workflow DNA'}
           subtitle={
             tab === 'trace'
               ? runId ? `${events.length} events` : undefined
-              : metrics ? `${metrics.agents.length} agents measured` : undefined
+              : tab === 'metrics'
+              ? metrics ? `${metrics.agents.length} agents measured` : undefined
+              : runId ? 'predicts, then remembers' : undefined
           }
           className="min-h-[340px]"
           right={
             <div className="flex gap-0.5 p-0.5 rounded-lg bg-[var(--color-surface-2)]">
-              {(['trace', 'metrics'] as const).map((t) => (
+              {(['trace', 'metrics', 'dna'] as const).map((t) => (
                 <button
                   key={t}
                   onClick={() => setTab(t)}
@@ -326,7 +329,7 @@ export default function App() {
                       : 'text-[var(--color-ink-faint)] hover:text-[var(--color-ink-muted)]'
                   }`}
                 >
-                  {t}
+                  {t === 'dna' ? 'workflow dna' : t}
                 </button>
               ))}
             </div>
@@ -336,6 +339,8 @@ export default function App() {
             live && events.length === 0
               ? <SkeletonRows n={6} />
               : <TraceViewer events={events} live={live} />
+          ) : tab === 'dna' ? (
+            <WorkflowDNAPanel events={events} runId={runId} />
           ) : busy === 'marginal' ? (
             <Empty icon="📈" title="Running the same task at depth 1, 2, 3 and 4">
               Each depth is a full run. The report is allowed to conclude that a smaller graph was

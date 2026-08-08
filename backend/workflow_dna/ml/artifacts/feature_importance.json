@@ -1,0 +1,11 @@
+{
+  "success": 0.8878,
+  "execution_time": 0.0676,
+  "retry_count": 0.0209,
+  "cost": 0.0094,
+  "number_of_agents": 0.0074,
+  "workflow_length": 0.0045,
+  "workflow_depth": 0.0024,
+  "parallel_enabled": 0.0,
+  "mutation_type_encoded": 0.0
+}

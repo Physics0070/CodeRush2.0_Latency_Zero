@@ -46,6 +46,13 @@ PyJWT==2.13.0
 # --- real benchmark data: SWE-bench Verified (block 7) ---
 datasets==5.0.1
 
+# --- Workflow DNA: fitness prediction for generated workflows (advisory,
+# sits on top of the engine — see backend/workflow_dna/) ---
+scikit-learn==1.8.0
+joblib==1.5.3
+pandas==3.0.2
+openpyxl==3.1.5  # reads the .xlsx pretraining dataset in workflow_dna/data/raw/
+
 # --- dev / CI ---
 pytest==9.1.1
 pytest-asyncio==1.4.0

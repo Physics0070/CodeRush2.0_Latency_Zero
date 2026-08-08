@@ -7,6 +7,7 @@ export type EventType =
   | 'COUNCIL_RANKING' | 'COUNCIL_VERDICT' | 'APPROVAL_REQUESTED' | 'APPROVAL_GRANTED'
   | 'PAUSE' | 'RESUME' | 'CANCEL' | 'BRANCH_FAILED' | 'RUN_END'
   | 'MEMORY_WRITE' | 'MEMORY_READ' | 'MEMORY_EVICTED'
+  | 'DNA_PREDICTED' | 'DNA_RECORDED'
 
 export interface LogEvent {
   run_id: string
@@ -78,6 +79,48 @@ export interface ReplayDiff {
   original_wall_ms: number; replay_wall_ms: number
   original_tokens: number; replay_tokens: number
   nodes_compared: number
+}
+
+// ------------------------------------------------------------------ Workflow DNA
+
+/** Payload shape of a DNA_PREDICTED event (backend/workflow_dna/orchestrator_hooks.py). */
+export interface DnaPredictedPayload {
+  predicted_fitness: number
+  estimate_source: 'history' | 'cold_start'
+  similar_workflow_count: number
+  threshold_met_without_mutation: boolean
+  mutation_suggestion?: {
+    mutation_type: string
+    predicted_fitness: number
+    note: string
+  }
+}
+
+/** Payload shape of a DNA_RECORDED event. */
+export interface DnaRecordedPayload {
+  fitness: number
+  quality: number
+  predicted_fitness: number | null
+}
+
+/** One row from Workflow DNA's history db — GET /api/workflow-dna/history. */
+export interface WorkflowDnaExecution {
+  workflow_id: string
+  generation: number
+  parent_workflow: string | null
+  mutation_type: string
+  agent_count: number
+  parallel_execution: number
+  workflow_depth: number
+  workflow_length: number
+  execution_time: number | null
+  retry_count: number | null
+  cost: number | null
+  quality: number | null
+  success: number | null
+  fitness: number | null
+  predicted_fitness: number | null
+  timestamp: string
 }
 
 export interface DepthPoint {
@@ -169,6 +212,8 @@ export const api = {
   marginalValue: (goal: string, models: string[]) =>
     req<MarginalValueReport>('/api/marginal-value',
       { method: 'POST', body: JSON.stringify({ goal, models, depths: [1, 2, 3, 4] }) }),
+  workflowDnaHistory: (limit = 20) =>
+    req<{ executions: WorkflowDnaExecution[] }>(`/api/workflow-dna/history?limit=${limit}`),
 }
 
 // ------------------------------------------------------------------ chat
