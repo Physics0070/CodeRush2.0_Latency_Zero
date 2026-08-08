@@ -42,50 +42,6 @@ Secrets go in the Render dashboard per service, never in `render.yaml`
 
 ---
 
-## Option 0 — everything in Docker, memory bounded (best on a laptop)
-
-Use this when the machine is short on RAM. `docker compose up` runs the app
-*and* Ollama as containers, so the models live in Docker's allocation instead
-of the host's.
-
-```bash
-docker compose up -d --build
-open http://localhost:7860
-```
-
-Stop any host Ollama first, or both daemons fight over the same model files:
-
-```bash
-taskkill /IM ollama.exe /F     # Windows
-pkill ollama                   # macOS / Linux
-```
-
-Measured on a 15.4GB laptop: the host Ollama held **2.47GB resident** and
-stopping it returned **2.5GB**. The same inference then ran inside the
-container with host memory unchanged and no `ollama` process on the host at
-all. Ollama is capped at 5GB and the app at 1.5GB, so neither can grow into the
-rest of the machine.
-
-The host's model directory is mounted rather than re-pulled — 9.8GB of existing
-models appear in the container immediately. Port 11434 is still published, so
-the test suite and the `ollama` CLI keep working against the container.
-
-**The tradeoff, measured.** Docker Desktop on Windows gives containers no GPU
-and reads the models over a bind mount, so local inference is markedly slower
-inside than out: first token **53s in-container vs ~7s on the host** for
-`llama3.2:3b`. Groq is the default first model precisely because it sidesteps
-both problems — 2.6s and no local RAM at all. Treat containerised Ollama as the
-offline fallback, not the fast path.
-
-| Knob | Default | Effect |
-|---|---|---|
-| `ACO_PORT` | 7860 | Host port for the app |
-| `OLLAMA_PORT` | 11434 | Host port for Ollama |
-| `OLLAMA_MODELS_DIR` | `$USERPROFILE/.ollama` | Where models are mounted from |
-| `WITH_EMBEDDINGS` | 0 | Set to 1 for MIG and duplicate detection |
-
----
-
 ## Option A — single origin (simplest, and what the demo uses)
 
 FastAPI serves the built frontend and the API from one process on port 7860.
@@ -97,60 +53,11 @@ cd frontend && npm run build && cd ..
 uvicorn backend.main:app --host 0.0.0.0 --port 7860
 ```
 
-This is exactly what the Docker image does, and what HF Spaces runs.
-
 Verified locally:
 
 ```bash
-docker build -t aco .
-docker run -d --name aco-test -p 7861:7860 --env-file .env \
-  --add-host=host.docker.internal:host-gateway \
-  -e OLLAMA_BASE_URL=http://host.docker.internal:11434 aco:latest
-curl localhost:7861/health      # {"status":"ok","version":"0.1.0"}
+curl localhost:7860/health      # {"status":"ok","version":"0.1.0"}
 ```
-
-`--add-host` is what lets the container reach an Ollama running on the host.
-Without it `ollama:*` models are unreachable from inside the container and only
-hosted providers answer — which is also the situation on HF Spaces.
-
-### Hugging Face Spaces
-
-1. New Space → SDK **Docker** → hardware **CPU basic (free)**. Note: some
-   accounts now require a paid plan for Docker/Gradio Spaces - Static Spaces
-   stay free for everyone. Check before relying on this path; Option C above
-   needs no such check.
-2. Settings → *Variables and secrets*. Add as **secrets**, not variables:
-   `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN`, `SECRET_KEY`, and `OPENROUTER_API_KEY`
-3. `git remote add space https://huggingface.co/spaces/<user>/<space>`
-4. `git push space main`
-5. Watch the build to completion, then `curl https://<user>-<space>.hf.space/health`
-
-**Ollama is not available on a Space.** There is no way to run `ollama serve`
-plus multi-GB model files on the free tier. Set `OPENROUTER_API_KEY` so the
-deployed instance has a working provider — the model string is per agent, so
-nothing else changes. This is the same swap as demo step 8.
-
-Known issues:
-
-- **Cold start.** Hit the URL five minutes before demoing.
-- **Semantic metrics are opt-in.** `torch` and `sentence-transformers` live in
-  `requirements-embeddings.txt`, not `requirements.txt`. They are ~1GB and are
-  served from `download.pytorch.org`, which stalls or refuses connections on
-  some networks — measured here as zero bytes in 120s. The CPU index also
-  carries no cp311 linux wheel above 2.6.0, so an exact pin that resolves on
-  Windows is unsatisfiable inside the image.
-
-  The default build omits them and finishes in about two minutes:
-
-  ```bash
-  docker build -t aco .                                # 863 MB, ~2 min
-  docker build --build-arg WITH_EMBEDDINGS=1 -t aco .  # adds MIG + duplicates
-  ```
-
-  Without them the app is fully functional. The metrics response reports
-  `embeddings_available: false` and omits marginal information gain and
-  duplicate pairs rather than guessing them. Chat, council, replay, permissions
-  and every timing and cost number are unaffected.
 
 ---
 
@@ -165,13 +72,13 @@ Use this if you specifically want the UI on a static host.
 - Set the build env var:
 
 ```
-VITE_API_BASE=https://<user>-<space>.hf.space
+VITE_API_BASE=https://your-backend-host.example.com
 ```
 
 It is baked in at build time, so changing it requires a redeploy.
 
-**Backend** — deploy Option A somewhere that keeps a process alive: HF Spaces
-Docker, Render, Railway or Fly.io.
+**Backend** — deploy Option A somewhere that keeps a process alive: Render,
+Railway or Fly.io.
 
 **Then allow the frontend's origin**, or every request fails CORS:
 

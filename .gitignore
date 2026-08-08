@@ -231,7 +231,7 @@ frontend/.vite/
 # Pinned demo repo + benchmark caches. Real data, fetched not committed.
 data/
 
-# HF Spaces disk is ephemeral - nothing here is ever a source of truth.
+# Render's disk is ephemeral - nothing here is ever a source of truth.
 .cache/
 
 # Assistant scratch files and personal workflow notes. These get dropped into

@@ -24,7 +24,7 @@ from backend.config import settings
 logging.basicConfig(level=settings.log_level, format="%(asctime)s %(levelname)-8s %(message)s")
 log = logging.getLogger("aco")
 
-# Frontend build output, copied into the image by the Dockerfile.
+# Frontend build output, served for the single-origin deployment option.
 FRONTEND_DIST = Path(__file__).resolve().parent.parent / "frontend" / "dist"
 
 limiter = Limiter(key_func=get_remote_address, default_limits=[settings.rate_limit_public])
