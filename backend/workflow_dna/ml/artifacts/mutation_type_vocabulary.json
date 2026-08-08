@@ -1,0 +1,9 @@
+[
+  "none",
+  "parallelize_agents",
+  "reorder_agents",
+  "swap_model",
+  "add_agent",
+  "remove_agent",
+  "modify_retry_strategy"
+]
