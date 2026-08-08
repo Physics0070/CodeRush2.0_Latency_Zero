@@ -19,6 +19,7 @@ from backend.api.schemas import (
 from backend.config import settings
 from backend.council import clarifying_questions, compile_graph, permission_prompt
 from backend.engine import Executor, GraphSpec
+from backend.engine.migrations import migrate
 from backend.events import EventStore, EventType
 from backend.permissions.red_agent import red_agent_graph
 from backend.providers.secret_broker import configured_providers
@@ -112,7 +113,10 @@ async def chat(req: ChatRequest, request: Request) -> EventSourceResponse:
             if store is not None:
                 await store.__aexit__(None, None, None)
 
-    return EventSourceResponse(gen())
+    # ping + anti-buffering header, matching /runs/{run_id}/stream - Render's
+    # edge is nginx-family and buffers a response by default, which would hold
+    # the whole stream until it ends.
+    return EventSourceResponse(gen(), ping=15, headers={"X-Accel-Buffering": "no"})
 
 
 @router.post("/chat/plan")
@@ -194,7 +198,11 @@ async def compile_endpoint(req: CompileRequest) -> dict:
 
 @router.post("/runs")
 async def start_run(req: RunRequest) -> dict:
-    graph = GraphSpec(**req.graph.model_dump()).finalize()
+    # Migrate before reconstruction: a graph built or persisted under an older
+    # schema version is walked forward to CURRENT_VERSION here, once, at the
+    # point a *new* run starts from it. Replay never calls this - see
+    # backend/engine/migrations.py's module docstring for why.
+    graph = GraphSpec(**migrate(req.graph.model_dump())).finalize()
     if graph.locked and req.graph.locked is False:
         raise HTTPException(status_code=409, detail="graph is locked")
 
@@ -409,3 +417,59 @@ async def red_agent_demo() -> dict:
                 if e.event_type in (EventType.TOOL_BLOCKED, EventType.INJECTION_BLOCKED)
             ],
         }
+
+
+@router.post("/demo/stale-memory")
+async def stale_memory_demo() -> dict:
+    """Proves TTL eviction is real: write a scratch entry with a short TTL,
+    read it back live, wait past the TTL, read again and show it's gone -
+    same "prove it live" shape as the red-agent demo above. Fast and
+    deterministic, no model calls."""
+    from backend.memory import memory_store
+
+    run_id = str(uuid.uuid4())
+    async with EventStore() as store:
+        await store.create_run(run_id, "Stale memory demonstration", "n/a", 42, {}, "running")
+        await memory_store.write(run_id, "demo_agent", "demo_key", {"note": "ephemeral"}, ttl_s=0.2,
+                                  shared=True)
+        live_before, _ = await memory_store.read_for(run_id, "demo_agent", include_shared=True)
+        await asyncio.sleep(0.3)
+        live_after, evicted = await memory_store.read_for(run_id, "demo_agent", include_shared=True)
+        if evicted:
+            await store.append(run_id, EventType.MEMORY_EVICTED, payload={"keys": evicted})
+        await store.set_run_status(run_id, "done", ended=True)
+        return {
+            "run_id": run_id,
+            "present_before_ttl": "demo_key" in live_before,
+            "present_after_ttl": "demo_key" in live_after,
+            "evicted": evicted,
+        }
+
+
+@router.post("/demo/version-migration")
+async def version_migration_demo() -> dict:
+    """Proves the version gate, not just a dict diff: a v1 graph migrated to
+    v2 flips whether memory_scope is honored, without reshaping anything -
+    see backend/engine/migrations.py for why v1->v2 is a behavioral epoch."""
+    from backend.engine.migrations import CURRENT_VERSION, migrate
+
+    v1_dict = {
+        "version": 1,
+        "nodes": [
+            {"id": "writer", "type": "agent", "agent": {
+                "id": "writer", "role": "writes shared notes", "system_contract": "c",
+                "tools": [], "model": "ollama:llama3.2:3b", "memory_scope": "shared_rw",
+            }},
+        ],
+        "edges": [],
+    }
+    migrated = migrate(v1_dict)
+    v1_graph = GraphSpec(**v1_dict)
+    v2_graph = GraphSpec(**migrated)
+    return {
+        "before": v1_dict,
+        "after": migrated,
+        "current_version": CURRENT_VERSION,
+        "memory_active_before": v1_graph.version >= 2,
+        "memory_active_after": v2_graph.version >= 2,
+    }

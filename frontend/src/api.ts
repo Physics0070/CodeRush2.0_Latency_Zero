@@ -6,6 +6,7 @@ export type EventType =
   | 'BUDGET_EXCEEDED' | 'RETRY' | 'COMPENSATE' | 'COUNCIL_PROPOSAL'
   | 'COUNCIL_RANKING' | 'COUNCIL_VERDICT' | 'APPROVAL_REQUESTED' | 'APPROVAL_GRANTED'
   | 'PAUSE' | 'RESUME' | 'CANCEL' | 'BRANCH_FAILED' | 'RUN_END'
+  | 'MEMORY_WRITE' | 'MEMORY_READ' | 'MEMORY_EVICTED'
 
 export interface LogEvent {
   run_id: string
@@ -25,6 +26,7 @@ export interface AgentSpec {
   id: string; role: string; system_contract: string
   tools: string[]; model: string; fallback_model: string | null
   budget_tokens: number; timeout_s: number; allowed_side_effects: string[]
+  memory_ttl_s?: number | null
 }
 
 export interface GraphNode {
@@ -34,6 +36,7 @@ export interface GraphNode {
   agent: AgentSpec | null
   compensates?: string | null
   max_retries: number
+  subgraph?: GraphSpec | null
 }
 
 export interface GraphEdge { from_node: string; to_node: string; handoff_schema: Record<string, unknown> }
@@ -165,10 +168,13 @@ export interface PlanInfo {
   clarifying_questions: string[]
   specialists: { id: string; role: string }[]
   plan_ms: number
+  model_choices: { id: string; role: string; model: string; reason: string }[]
+  answer_model: string
+  answer_model_reason: string
 }
 
 export interface SpecialistInfo {
-  id: string; points: number; model: string | null
+  id: string; points: number; model: string | null; reason: string | null
   latency_ms: number | null; tokens: number | null; error: string | null
 }
 
@@ -179,13 +185,15 @@ export interface Benchmarks {
   complexity: string
   planner_source: string
   models_used: string[]
+  answer_model: string
+  answer_model_reason: string
   timing: {
     plan_ms: number; fanout_ms: number
     first_token_ms: number | null; total_ms: number
   }
   specialists: {
-    id: string; points: number; latency_ms: number | null
-    tokens: number | null; failed: boolean
+    id: string; points: number; model: string | null; reason: string | null
+    latency_ms: number | null; tokens: number | null; failed: boolean
   }[]
   parallel_efficiency: number | null
   tokens: number

@@ -41,6 +41,9 @@ class EventType(StrEnum):
     CANCEL = "CANCEL"
     BRANCH_FAILED = "BRANCH_FAILED"
     RUN_END = "RUN_END"
+    MEMORY_WRITE = "MEMORY_WRITE"
+    MEMORY_READ = "MEMORY_READ"
+    MEMORY_EVICTED = "MEMORY_EVICTED"
 
 
 class Event(BaseModel):

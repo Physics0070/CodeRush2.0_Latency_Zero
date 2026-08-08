@@ -14,6 +14,7 @@ import logging
 from backend.council.council import Verdict, deliberate
 from backend.engine.spec import AgentSpec, Edge, GraphSpec, Node
 from backend.events import EventStore, EventType
+from backend.providers.catalog import rank_models
 
 log = logging.getLogger("aco.compiler")
 
@@ -142,8 +143,14 @@ def build_graph(
         Edge(from_node="approve", to_node="fanout"),
     ]
 
+    # This path has no Plan/intent (compile_graph takes a raw goal string) and
+    # its shape is inherently audit-flavored (security/quality/docs-style
+    # branches), so it ranks against the "audit" weight profile - see
+    # backend/providers/catalog.py. Pure function of (models, "audit"), so
+    # every depth in marginal_value.py's sweep still ranks identically.
+    ranked = rank_models(models, "audit")
     for i, b in enumerate(clean):
-        model = models[i % len(models)]
+        model = ranked[i % len(ranked)][0]
         nodes.append(Node(id=b["id"], type="agent", agent=_branch_agent(
             b["id"], b["role"], b["tools"], model), max_retries=1))
         edges.append(Edge(from_node="fanout", to_node=b["id"], handoff_schema=FINDINGS_SCHEMA))

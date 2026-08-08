@@ -147,6 +147,25 @@ function BenchDrawer({ turn, onClose }: { turn: Turn; onClose: () => void }) {
         </section>
 
         <section className="drawer-sec">
+          <h4>Model routing</h4>
+          <div className="kv"><span>Answer model</span><b>{b.answer_model}</b></div>
+          <p className="drawer-note">{b.answer_model_reason}</p>
+          {b.specialists.length > 0 && (
+            <>
+              {b.specialists.map((s) => (
+                <div key={s.id} className="spec-row">
+                  <div className="spec-id">{s.id}</div>
+                  <div className="spec-meta">
+                    {s.model ?? '—'}
+                    {s.reason && <> · {s.reason}</>}
+                  </div>
+                </div>
+              ))}
+            </>
+          )}
+        </section>
+
+        <section className="drawer-sec">
           <h4>Timing</h4>
           <div className="kv"><span>Planning</span><b>{ms(b.timing.plan_ms)}</b></div>
           {b.route === 'council' && (

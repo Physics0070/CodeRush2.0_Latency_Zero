@@ -19,6 +19,7 @@ from pydantic import BaseModel
 from backend.engine.spec import GraphSpec, Node
 from backend.events import EventStore, EventType
 from backend.handoff import repair_loop
+from backend.memory import DEFAULT_MEMORY_TTL_S, memory_store
 from backend.permissions import CapabilityGuard, screen_payload
 from backend.providers import complete
 
@@ -26,6 +27,11 @@ log = logging.getLogger("aco.engine")
 
 # Injected so replay can serve calls from the log instead of the network.
 Completer = Callable[..., Awaitable]
+
+# A subgraph node's nested GraphSpec can itself contain a subgraph node,
+# recursively. Bounded so a malformed or self-referential graph fails loudly
+# with a clear error instead of exhausting the call stack.
+MAX_SUBGRAPH_DEPTH = 3
 
 
 class NodeResult(BaseModel):
@@ -66,6 +72,7 @@ class Executor:
         completer: Completer | None = None,
         approvals: set[str] | None = None,
         clarifications: dict | None = None,
+        depth: int = 0,
     ) -> None:
         self.store = store
         self.graph = graph
@@ -78,11 +85,23 @@ class Executor:
         self.outputs: dict[str, dict | list] = {}
         self.results: dict[str, NodeResult] = {}
         self.guard = CapabilityGuard(store, run_id)
+        # 0 for the top-level executor of a run; a subgraph node's child
+        # executor is constructed with depth+1. A constructor param, not a
+        # class-level counter - separate runs execute as concurrent asyncio
+        # Tasks in the same process, so a shared counter would leak between
+        # unrelated runs.
+        self.depth = depth
 
     # ------------------------------------------------------------------ run
 
     async def run(self) -> RunResult:
         problems = self.graph.validate_side_effects()
+        all_ids = self.graph.all_node_ids()
+        if len(all_ids) != len(set(all_ids)):
+            dupes = sorted({i for i in all_ids if all_ids.count(i) > 1})
+            problems.append(
+                f"duplicate node id(s) across the graph and its nested subgraphs: {dupes}"
+            )
         if problems:
             await self.store.append(
                 self.run_id, EventType.BRANCH_FAILED,
@@ -91,13 +110,48 @@ class Executor:
             await self.store.set_run_status(self.run_id, "failed", ended=True)
             return RunResult(run_id=self.run_id, ok=False, failed_nodes=["<graph>"])
 
-        await self.store.append(
+        await self.store.append_and_set_status(
             self.run_id, EventType.RUN_START,
-            payload={"config_hash": self.graph.config_hash, "seed": self.seed},
+            {"config_hash": self.graph.config_hash, "seed": self.seed},
+            status="running",
         )
-        await self.store.set_run_status(self.run_id, "running")
 
         started = time.perf_counter()
+        failed, compensated = await self._run_graph()
+        wall = max(int((time.perf_counter() - started) * 1000), 1)
+        latency_sum = sum(r.latency_ms for r in self.results.values())
+
+        pe = round(latency_sum / wall, 3)
+        await self.store.append_and_set_status(
+            self.run_id, EventType.RUN_END,
+            {
+                "ok": not failed,
+                "failed_nodes": failed,
+                "compensated": compensated,
+                "wall_clock_ms": wall,
+                "latency_sum_ms": latency_sum,
+                "parallel_efficiency": pe,
+            },
+            status="done" if not failed else "failed", ended=True,
+        )
+        return RunResult(
+            run_id=self.run_id,
+            ok=not failed,
+            results=self.results,
+            wall_clock_ms=wall,
+            parallel_efficiency=pe,
+            failed_nodes=failed,
+            compensated=compensated,
+        )
+
+    async def _run_graph(self) -> tuple[list[str], list[str]]:
+        """The level loop + compensation, with no run-status bookkeeping.
+
+        Split out of `run()` so a subgraph node can execute a nested GraphSpec
+        under the *same* run_id without marking the whole run ended the moment
+        the nested graph finishes - see `_subgraph_node`. Populates
+        `self.results`/`self.outputs` exactly as `run()` used to inline.
+        """
         failed: list[str] = []
 
         for level in self.graph.levels():
@@ -127,33 +181,7 @@ class Executor:
                     failed.append(node_id)
 
         compensated = await self._compensate(failed)
-        wall = max(int((time.perf_counter() - started) * 1000), 1)
-        latency_sum = sum(r.latency_ms for r in self.results.values())
-
-        pe = round(latency_sum / wall, 3)
-        await self.store.append(
-            self.run_id, EventType.RUN_END,
-            payload={
-                "ok": not failed,
-                "failed_nodes": failed,
-                "compensated": compensated,
-                "wall_clock_ms": wall,
-                "latency_sum_ms": latency_sum,
-                "parallel_efficiency": pe,
-            },
-        )
-        await self.store.set_run_status(
-            self.run_id, "done" if not failed else "failed", ended=True
-        )
-        return RunResult(
-            run_id=self.run_id,
-            ok=not failed,
-            results=self.results,
-            wall_clock_ms=wall,
-            parallel_efficiency=pe,
-            failed_nodes=failed,
-            compensated=compensated,
-        )
+        return failed, compensated
 
     # ------------------------------------------------------------- per node
 
@@ -198,7 +226,54 @@ class Executor:
             return await self._passthrough(node)
         if node.type in ("agent", "verify", "council", "conditional"):
             return await self._agent_node(node)
+        if node.type == "subgraph":
+            return await self._subgraph_node(node)
         return NodeResult(node_id=node.id, ok=True, skipped=True)
+
+    async def _subgraph_node(self, node: Node) -> NodeResult:
+        """Run a nested GraphSpec as one unit of the parent graph.
+
+        Reuses the same store/run_id (nested events land in the same run's
+        trace) but a fresh outputs/results scope, so the child's node ids -
+        already guaranteed unique across the whole nested tree by run()'s
+        duplicate check - never collide with the parent's.
+        """
+        if node.subgraph is None:
+            return NodeResult(node_id=node.id, ok=True, skipped=True)
+        if self.depth >= MAX_SUBGRAPH_DEPTH:
+            return NodeResult(
+                node_id=node.id, ok=False,
+                error=f"max subgraph nesting depth {MAX_SUBGRAPH_DEPTH} exceeded",
+            )
+        problems = node.subgraph.validate_side_effects()
+        if problems:
+            return NodeResult(
+                node_id=node.id, ok=False,
+                error=f"unapproved side effects in subgraph: {problems}",
+            )
+
+        child = Executor(
+            self.store, node.subgraph, self.run_id,
+            seed=self.seed, completer=self.completer,
+            approvals=self.approvals, clarifications=self.clarifications,
+            depth=self.depth + 1,
+        )
+        parent_ctx = self._upstream_context(node.id)
+        if parent_ctx:
+            child.outputs["__parent__"] = parent_ctx
+
+        started = time.perf_counter()
+        failed, _compensated = await child._run_graph()
+        elapsed = int((time.perf_counter() - started) * 1000)
+
+        # Sink nodes (nothing downstream inside the subgraph) are its outputs -
+        # what the parent graph sees this node as having produced.
+        sinks = [
+            n.id for n in node.subgraph.nodes
+            if n.type != "compensate" and not node.subgraph.children(n.id)
+        ]
+        output = {s: child.outputs[s] for s in sinks if s in child.outputs}
+        return NodeResult(node_id=node.id, ok=not failed, output=output, latency_ms=elapsed)
 
     async def _approval(self, node: Node) -> NodeResult:
         await self.store.append(
@@ -229,8 +304,9 @@ class Executor:
         await self.store.append_many(
             self.run_id,
             [
-                (EventType.NODE_START, {"type": node.type}, None),
-                (EventType.NODE_END, {"type": node.type}, elapsed),
+                {"event_type": EventType.NODE_START, "payload": {"type": node.type}},
+                {"event_type": EventType.NODE_END, "payload": {"type": node.type},
+                 "latency_ms": elapsed},
             ],
             node_id=node.id,
         )
@@ -248,8 +324,11 @@ class Executor:
         )
 
         upstream = self._upstream_context(node.id)
+        if self.graph.version >= 2:
+            upstream = await self._merge_memory(node, agent, upstream)
         # Injection screening happens before the payload enters the context,
-        # not after the model has already read it.
+        # not after the model has already read it - memory contents flow
+        # through here too, since they were merged into `upstream` above.
         clean, blocked = await screen_payload(
             self.store, self.run_id, upstream, node_id=node.id, agent_id=agent.id
         )
@@ -340,6 +419,8 @@ class Executor:
             self.store, self.run_id, seq=outcome.final_seq or 0,
             written_by=agent.id, content=outcome.payload, node_id=node.id,
         )
+        if self.graph.version >= 2:
+            await self._write_memory(node, agent, outcome.payload)
         return NodeResult(node_id=node.id, ok=True, output=outcome.payload, latency_ms=elapsed)
 
     async def _with_retries(self, node: Node, produce, schema: dict, agent):
@@ -384,13 +465,55 @@ class Executor:
     # ------------------------------------------------------------- helpers
 
     def _upstream_context(self, node_id: str) -> dict:
-        return {p: self.outputs.get(p) for p in self.graph.parents(node_id) if p in self.outputs}
+        ctx = {p: self.outputs.get(p) for p in self.graph.parents(node_id) if p in self.outputs}
+        # A subgraph's child executor seeds outputs["__parent__"] with the
+        # parent graph's context for the subgraph node (see _subgraph_node).
+        # No-op for the top-level executor, which never sets this key.
+        if node_id != "__parent__" and "__parent__" in self.outputs:
+            ctx.setdefault("__parent__", self.outputs["__parent__"])
+        return ctx
 
     def _outgoing_schema(self, node_id: str) -> dict | None:
         for e in self.graph.edges:
             if e.from_node == node_id and e.handoff_schema:
                 return e.handoff_schema
         return None
+
+    # --------------------------------------------------------------- memory
+
+    async def _merge_memory(self, node: Node, agent, upstream: dict) -> dict:
+        """Fold live shared/scratch memory into this node's upstream context.
+
+        Direct-parent output wins on key collision (it is the more specific,
+        freshly-produced value); memory fills in what a node without a direct
+        edge to the source still needs to see.
+        """
+        live, evicted = await memory_store.read_for(
+            self.run_id, agent.id, include_shared=agent.memory_scope != "isolated"
+        )
+        if evicted:
+            await self.store.append(
+                self.run_id, EventType.MEMORY_EVICTED, node_id=node.id, agent_id=agent.id,
+                payload={"keys": evicted},
+            )
+        if not live:
+            return upstream
+        await self.store.append(
+            self.run_id, EventType.MEMORY_READ, node_id=node.id, agent_id=agent.id,
+            payload={"keys": list(live)},
+        )
+        return {**live, **upstream}
+
+    async def _write_memory(self, node: Node, agent, payload) -> None:
+        ttl = agent.memory_ttl_s if agent.memory_ttl_s is not None else DEFAULT_MEMORY_TTL_S
+        await memory_store.write(
+            self.run_id, agent.id, node.id, payload,
+            ttl_s=ttl, shared=agent.memory_scope == "shared_rw",
+        )
+        await self.store.append(
+            self.run_id, EventType.MEMORY_WRITE, node_id=node.id, agent_id=agent.id,
+            payload={"ttl_s": ttl, "shared": agent.memory_scope == "shared_rw"},
+        )
 
 
 def _render(context: dict, agent) -> str:

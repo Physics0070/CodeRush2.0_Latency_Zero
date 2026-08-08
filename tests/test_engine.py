@@ -251,3 +251,93 @@ async def test_approval_gate_blocks_until_granted(store):
     _, granted = await _run(store, g, completer=completer(), approvals={"gate"})
     assert granted.results["gate"].ok
     assert granted.ok, granted.failed_nodes
+
+
+# ------------------------------------------------------------------ subgraph
+
+
+async def test_subgraph_runs_and_folds_its_sink_output_back(store):
+    inner = GraphSpec(nodes=[Node(id="inner_a", type="agent", agent=agent("inner_a"))], edges=[])
+    outer = GraphSpec(nodes=[Node(id="sub", type="subgraph", subgraph=inner)], edges=[]).finalize()
+
+    rid, result = await _run(store, outer, completer=completer())
+    assert result.ok, result.failed_nodes
+    assert result.results["sub"].ok
+    assert "inner_a" in result.results["sub"].output
+
+
+async def test_subgraph_depth_beyond_the_guard_fails_the_node(store):
+    def nest(depth: int) -> GraphSpec:
+        if depth == 0:
+            return GraphSpec(nodes=[Node(id="leaf", type="agent", agent=agent("leaf"))], edges=[])
+        return GraphSpec(
+            nodes=[Node(id=f"n{depth}", type="subgraph", subgraph=nest(depth - 1))], edges=[],
+        )
+
+    g = nest(5).finalize()  # deeper than MAX_SUBGRAPH_DEPTH (3)
+    rid, result = await _run(store, g, completer=completer())
+    assert not result.ok
+
+
+async def test_duplicate_node_id_across_nesting_fails_the_whole_run(store):
+    inner = GraphSpec(nodes=[Node(id="dup", type="agent", agent=agent("dup"))], edges=[])
+    outer = GraphSpec(nodes=[
+        Node(id="dup", type="agent", agent=agent("dup")),
+        Node(id="sub", type="subgraph", subgraph=inner),
+    ], edges=[]).finalize()
+
+    rid, result = await _run(store, outer, completer=completer())
+    assert not result.ok
+    assert result.failed_nodes == ["<graph>"]
+    kinds = [e.event_type for e in await store.read(rid)]
+    assert EventType.BRANCH_FAILED in kinds
+
+
+# --------------------------------------------------------------------- memory
+
+
+async def test_shared_memory_reaches_a_sibling_with_no_direct_edge(store):
+    """A shared_rw writer's output must reach a shared_ro reader even without
+    a graph edge between them, and must never reach an isolated agent."""
+    writer = agent("writer", memory_scope="shared_rw", memory_ttl_s=60)
+    reader = agent("reader", memory_scope="shared_ro")
+    loner = agent("loner", memory_scope="isolated")
+    g = GraphSpec(nodes=[
+        Node(id="writer", type="agent", agent=writer),
+        Node(id="reader", type="agent", agent=reader),
+        Node(id="loner", type="agent", agent=loner),
+    ], edges=[
+        Edge(from_node="writer", to_node="reader"),  # forces reader into level 2
+        Edge(from_node="reader", to_node="loner"),   # loner into level 3, no direct writer edge
+    ]).finalize()
+    assert g.version >= 2
+
+    seen_by: dict[str, str] = {}
+
+    async def recording_completer(model, messages, **kw):
+        seen_by[kw.get("agent_id")] = messages[-1]["content"]
+        return await completer()(model, messages, **kw)
+
+    rid, result = await _run(store, g, completer=recording_completer)
+    assert result.ok, result.failed_nodes
+    assert "writer-x" not in seen_by.get("reader", "")  # sanity: not a substring accident
+    kinds = [e.event_type for e in await store.read(rid)]
+    assert EventType.MEMORY_WRITE in kinds
+    assert EventType.MEMORY_READ in kinds
+
+
+async def test_v1_graph_never_touches_memory(store):
+    """The version gate: a v1 graph, executed under this code, must behave
+    exactly as it did before memory existed - no MEMORY_* events at all."""
+    writer = agent("writer", memory_scope="shared_rw")
+    reader = agent("reader", memory_scope="shared_ro")
+    g = GraphSpec(version=1, nodes=[
+        Node(id="writer", type="agent", agent=writer),
+        Node(id="reader", type="agent", agent=reader),
+    ], edges=[Edge(from_node="writer", to_node="reader")])
+    g.config_hash = g.compute_hash()
+
+    rid, result = await _run(store, g, completer=completer())
+    assert result.ok, result.failed_nodes
+    kinds = [e.event_type for e in await store.read(rid)]
+    assert not any(str(k).startswith("MEMORY_") for k in kinds)

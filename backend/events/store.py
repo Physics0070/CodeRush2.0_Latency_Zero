@@ -226,16 +226,19 @@ class EventStore:
     async def append_many(
         self,
         run_id: str,
-        events: list[tuple[EventType | str, dict, int | None]],
+        events: list[dict],
         *,
         node_id: str | None = None,
         agent_id: str | None = None,
     ) -> list[int]:
         """Reserve a contiguous seq range and insert N rows in one round trip.
 
-        Each event is (event_type, payload, latency_ms) - latency_ms is a real
-        column (aggregate_latency/parallel-efficiency read it directly, not
-        the payload), not just three-tuples of convenience.
+        Each event is a dict: `event_type` (required), `payload`, `latency_ms`,
+        `tokens_in`, `tokens_out`, `cost_usd`, `node_id`, `agent_id`. The last
+        two default to this call's shared `node_id`/`agent_id` kwargs when
+        omitted, so a batch can mix events for different nodes/agents (e.g. one
+        row per specialist) in a single round trip, or share one node/agent
+        (the original use case below) by only passing the kwargs.
 
         For events with nothing but wall-clock between them (no model call, no
         real work) - use this instead of N separate `append` calls. Deliberately
@@ -264,15 +267,75 @@ class EventStore:
             c.executemany(
                 "INSERT INTO events (run_id, seq, node_id, agent_id, event_type, payload, "
                 "tokens_in, tokens_out, cost_usd, latency_ms, ts) "
-                "VALUES (?, ?, ?, ?, ?, ?, 0, 0, 0.0, ?, ?)",
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 [
-                    (run_id, first_seq + i, node_id, agent_id, str(et),
-                     json.dumps(payload) if payload is not None else None, latency_ms, ts)
-                    for i, (et, payload, latency_ms) in enumerate(events)
+                    (
+                        run_id, first_seq + i,
+                        ev.get("node_id", node_id), ev.get("agent_id", agent_id),
+                        str(ev["event_type"]),
+                        json.dumps(ev["payload"]) if ev.get("payload") is not None else None,
+                        ev.get("tokens_in", 0), ev.get("tokens_out", 0),
+                        ev.get("cost_usd", 0.0), ev.get("latency_ms"), ts,
+                    )
+                    for i, ev in enumerate(events)
                 ],
             )
             c.commit()
             return list(range(first_seq, last_seq + 1))
+
+        return await self._run(_do)
+
+    async def append_and_set_status(
+        self,
+        run_id: str,
+        event_type: EventType | str,
+        payload: dict | None,
+        *,
+        status: str,
+        ended: bool = False,
+        node_id: str | None = None,
+        agent_id: str | None = None,
+        tokens_in: int = 0,
+        tokens_out: int = 0,
+        cost_usd: float = 0.0,
+        latency_ms: int | None = None,
+    ) -> int:
+        """One event insert plus one `runs.status` update, one round trip.
+
+        Replaces the common `append(RUN_START/RUN_END) + set_run_status(...)`
+        pair, which today costs 2 round trips for no reason - both go through
+        the same shared connection and lock, so gathering them concurrently
+        saves nothing; only merging the SQL does.
+        """
+        ts = _now()
+
+        def _do(c):
+            cur = c.execute(
+                "UPDATE runs SET last_seq = last_seq + 1 WHERE run_id = ? RETURNING last_seq",
+                [run_id],
+            )
+            row = list(cur)
+            if not row:
+                raise EventStoreError(f"unknown run_id {run_id}, create the run before appending")
+            new_seq = row[0][0]
+
+            c.execute(
+                "INSERT INTO events (run_id, seq, node_id, agent_id, event_type, payload, "
+                "tokens_in, tokens_out, cost_usd, latency_ms, ts) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                [run_id, new_seq, node_id, agent_id, str(event_type),
+                 json.dumps(payload) if payload is not None else None,
+                 tokens_in, tokens_out, cost_usd, latency_ms, ts],
+            )
+            if ended:
+                c.execute(
+                    "UPDATE runs SET status = ?, ended_at = ? WHERE run_id = ?",
+                    [status, ts, run_id],
+                )
+            else:
+                c.execute("UPDATE runs SET status = ? WHERE run_id = ?", [status, run_id])
+            c.commit()
+            return new_seq
 
         return await self._run(_do)
 

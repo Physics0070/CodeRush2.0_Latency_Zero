@@ -26,6 +26,15 @@ NodeType = Literal[
 
 MemoryScope = Literal["shared_rw", "shared_ro", "isolated"]
 
+# Version 2 is a behavioral epoch, not a shape change: every field added below
+# defaults to None, so a v1 graph dict parses identically under this schema and
+# hashes identically (compute_hash excludes None fields). What actually changes
+# at v2 is that the executor starts honoring AgentSpec.memory_scope (previously
+# declared, always inert) and dispatches "subgraph" nodes - both gated on
+# `graph.version >= 2` so replaying an old run never silently changes behavior.
+# See backend/engine/migrations.py.
+CURRENT_VERSION = 2
+
 
 class AgentSpec(BaseModel):
     id: str
@@ -43,6 +52,11 @@ class AgentSpec(BaseModel):
     timeout_s: int = 120
     # Non-empty means this node needs an upstream approval gate.
     allowed_side_effects: list[str] = Field(default_factory=list)
+    # Seconds a shared-memory write from this agent stays live. None means "use
+    # the memory subsystem's default" - kept None here, not defaulted to a
+    # number, so a pre-existing graph's config_hash is untouched by this field's
+    # addition (see CURRENT_VERSION above).
+    memory_ttl_s: int | None = None
 
 
 class Node(BaseModel):
@@ -56,6 +70,13 @@ class Node(BaseModel):
     council_members: list[str] = Field(default_factory=list)
     chairman_policy: str = "strongest"
     max_retries: int = 1
+    # subgraph: a nested, independently-structured graph this node runs as one
+    # unit. None for every other node type, and for every valid v1 graph, which
+    # is what makes this field safe to add without touching old config hashes.
+    # Never call .finalize() on a nested GraphSpec before embedding it here -
+    # it must keep config_hash="" so the parent's hash isn't computed over a
+    # nested hash of itself.
+    subgraph: "GraphSpec | None" = None
 
 
 class Edge(BaseModel):
@@ -66,7 +87,7 @@ class Edge(BaseModel):
 
 
 class GraphSpec(BaseModel):
-    version: int = 1
+    version: int = CURRENT_VERSION
     config_hash: str = ""
     nodes: list[Node] = Field(default_factory=list)
     edges: list[Edge] = Field(default_factory=list)
@@ -135,16 +156,21 @@ class GraphSpec(BaseModel):
     def validate_side_effects(self) -> list[str]:
         """PS safety boundary: a node that can cause a side effect must have an
         approval gate somewhere upstream. Read-only nodes fan out freely.
+
+        Recurses into nested subgraphs: each one is checked for safety on its
+        own terms (its own side-effecting nodes need their own upstream
+        approval *inside* the subgraph), so a subgraph node cannot be used to
+        smuggle an unapproved side effect past this check.
         """
         problems = []
         for n in self.nodes:
-            if not (n.agent and n.agent.allowed_side_effects):
-                continue
-            if not self._has_upstream_approval(n.id):
+            if n.agent and n.agent.allowed_side_effects and not self._has_upstream_approval(n.id):
                 problems.append(
                     f"node {n.id!r} declares side effects "
                     f"{n.agent.allowed_side_effects} with no upstream approval node"
                 )
+            if n.subgraph is not None:
+                problems += [f"{n.id}.{p}" for p in n.subgraph.validate_side_effects()]
         return problems
 
     def _has_upstream_approval(self, node_id: str, seen: set[str] | None = None) -> bool:
@@ -158,3 +184,23 @@ class GraphSpec(BaseModel):
             if self._has_upstream_approval(p, seen):
                 return True
         return False
+
+    def all_node_ids(self) -> list[str]:
+        """This graph's node ids plus every nested subgraph's, recursively.
+
+        Every event append and replay's completion lookup key by (node_id,
+        agent_id) within one run_id - a node id reused across nesting levels
+        would let replay silently serve the wrong recorded completion to the
+        wrong node, so the executor checks this list for duplicates before
+        running anything.
+        """
+        ids = [n.id for n in self.nodes]
+        for n in self.nodes:
+            if n.subgraph is not None:
+                ids += n.subgraph.all_node_ids()
+        return ids
+
+
+# Node.subgraph above is a forward reference to GraphSpec, which is defined
+# after Node in this file - resolve it now that both classes exist.
+Node.model_rebuild()
