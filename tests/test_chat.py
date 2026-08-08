@@ -19,6 +19,7 @@ from backend.chat.planner import (
 )
 from backend.chat.session import _mig, chat_graph
 from backend.handoff import validate
+from backend.providers.base import ProviderError
 
 pytestmark = pytest.mark.asyncio
 
@@ -166,7 +167,7 @@ def test_mig_flags_specialists_that_said_the_same_thing():
 async def test_turn_emits_an_answer_and_benchmarks(monkeypatch):
     """No provider is called: the point is the event contract the UI depends on."""
 
-    async def fake_stream(question, model, *, history=None, temperature=0.3):
+    async def fake_stream(question, model, *, history=None, temperature=0.3, fallback_model=None):
         for piece in ("Hello", " there"):
             yield piece
 
@@ -190,7 +191,7 @@ async def test_turn_emits_an_answer_and_benchmarks(monkeypatch):
 async def test_turn_survives_a_broken_answer_stream(monkeypatch):
     """A provider dying mid-answer must still close the turn cleanly."""
 
-    async def boom(question, model, *, history=None, temperature=0.3):
+    async def boom(question, model, *, history=None, temperature=0.3, fallback_model=None):
         yield "partial"
         raise RuntimeError("provider died")
 
@@ -220,6 +221,54 @@ async def test_stream_direct_sends_history_and_a_system_prompt(monkeypatch):
     assert seen["messages"][0]["role"] == "system"
     assert seen["messages"][-1]["content"] == "and then?"
     assert any(m["content"] == "hi" for m in seen["messages"])
+
+
+async def test_stream_direct_falls_back_before_any_token_is_yielded(monkeypatch):
+    """A 429 (or any provider failure) before the first token must be
+    invisible to the user - retried once against fallback_model."""
+
+    class FailingAdapter:
+        async def stream(self, messages, model, *, temperature=0.0, seed=None):
+            raise ProviderError("provider returned 429", status=429, retryable=True)
+            yield  # pragma: no cover - unreachable; keeps this an async generator
+
+    class FallbackAdapter:
+        async def stream(self, messages, model, *, temperature=0.0, seed=None):
+            yield "ok"
+
+    def fake_adapter_for(spec):
+        return (FailingAdapter(), spec) if spec == "primary:model" else (FallbackAdapter(), spec)
+
+    monkeypatch.setattr("backend.chat.answer.adapter_for", fake_adapter_for)
+    out = [p async for p in stream_direct(
+        "q", "primary:model", fallback_model="fallback:model",
+    )]
+    assert out == ["ok"]
+
+
+async def test_stream_direct_does_not_retry_after_a_token_was_already_sent(monkeypatch):
+    """A failure mid-answer must be reported, not silently restarted - a
+    retry here would splice two partial answers together."""
+
+    class FlakyAdapter:
+        async def stream(self, messages, model, *, temperature=0.0, seed=None):
+            yield "partial"
+            raise ProviderError("provider returned 500", status=500, retryable=True)
+
+    class NeverCalledAdapter:
+        async def stream(self, messages, model, *, temperature=0.0, seed=None):
+            raise AssertionError("fallback must not run once a token has been sent")
+            yield  # pragma: no cover
+
+    def fake_adapter_for(spec):
+        return (FlakyAdapter(), spec) if spec == "primary:model" else (NeverCalledAdapter(), spec)
+
+    monkeypatch.setattr("backend.chat.answer.adapter_for", fake_adapter_for)
+    got: list[str] = []
+    with pytest.raises(ProviderError):
+        async for piece in stream_direct("q", "primary:model", fallback_model="fallback:model"):
+            got.append(piece)
+    assert got == ["partial"]
 
 
 def test_plan_route_is_reported_honestly():

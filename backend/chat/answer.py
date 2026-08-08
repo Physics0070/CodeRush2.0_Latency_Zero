@@ -84,16 +84,35 @@ async def stream_direct(
     *,
     history: list[dict] | None = None,
     temperature: float = 0.3,
+    fallback_model: str | None = None,
 ) -> AsyncIterator[str]:
-    """Fast path: straight to the model, tokens as they arrive."""
+    """Fast path: straight to the model, tokens as they arrive.
+
+    A provider failure (429, 5xx, a dropped connection) before any token has
+    reached the client is retried once against `fallback_model`, transparently -
+    the user sees an answer, not "the answer stream failed". Once even one
+    token has been yielded, a failure can only be reported: silently
+    restarting mid-answer would splice two partial answers together.
+    """
     adapter, name = adapter_for(model)
     messages = [
         {"role": "system", "content": SYSTEM},
         *_history_messages(history or []),
         {"role": "user", "content": question},
     ]
-    async for piece in adapter.stream(messages, name, temperature=temperature):
-        yield piece
+    yielded = False
+    try:
+        async for piece in adapter.stream(messages, name, temperature=temperature):
+            yielded = True
+            yield piece
+    except Exception as e:
+        if yielded or not fallback_model:
+            raise
+        log.warning("answer model %s failed before any output (%s), falling back to %s",
+                    model, e, fallback_model)
+        fb_adapter, fb_name = adapter_for(fallback_model)
+        async for piece in fb_adapter.stream(messages, fb_name, temperature=temperature):
+            yield piece
 
 
 def _format_contributions(contributions: list[dict]) -> str:
@@ -127,16 +146,20 @@ async def stream_synthesis(
     model: str,
     *,
     history: list[dict] | None = None,
+    fallback_model: str | None = None,
 ) -> AsyncIterator[str]:
     """Council path: merge the specialists' notes into one answer.
 
     Falls back to answering directly when the specialists produced nothing
     usable, because an empty council is not a reason to give the user nothing.
+    Also falls back to `fallback_model` on a provider failure before any token
+    has been sent - see stream_direct's docstring for why the cutoff is there.
     """
     notes = _format_contributions(contributions)
     if not notes.strip():
         log.warning("no usable contributions, answering directly")
-        async for piece in stream_direct(question, model, history=history):
+        async for piece in stream_direct(question, model, history=history,
+                                          fallback_model=fallback_model):
             yield piece
         return
 
@@ -146,8 +169,19 @@ async def stream_synthesis(
         *_history_messages(history or []),
         {"role": "user", "content": f"Question:\n{question}\n\nSpecialist notes:\n{notes}"},
     ]
-    async for piece in adapter.stream(messages, name, temperature=0.3):
-        yield piece
+    yielded = False
+    try:
+        async for piece in adapter.stream(messages, name, temperature=0.3):
+            yielded = True
+            yield piece
+    except Exception as e:
+        if yielded or not fallback_model:
+            raise
+        log.warning("synthesis model %s failed before any output (%s), falling back to %s",
+                    model, e, fallback_model)
+        fb_adapter, fb_name = adapter_for(fallback_model)
+        async for piece in fb_adapter.stream(messages, fb_name, temperature=0.3):
+            yield piece
 
 
 async def contribute(
@@ -157,6 +191,7 @@ async def contribute(
     model: str,
     *,
     seed: int | None = None,
+    fallback_model: str | None = None,
 ) -> dict:
     """One specialist's pass. Returns a contribution dict, never raises.
 
@@ -186,7 +221,7 @@ async def contribute(
         try:
             c = await registry.complete(
                 model, messages, temperature=0.2, seed=seed,
-                max_tokens=900, json_mode=True,
+                max_tokens=900, json_mode=True, fallback_model=fallback_model,
             )
         except Exception as e:
             log.warning("specialist %s call failed: %s", aspect_id, e)

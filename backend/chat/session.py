@@ -176,6 +176,10 @@ async def run_turn(
     fan_models = specialist_models(models)
     ranked = rank_models(fan_models, plan.intent)
     answer_model, answer_model_reason = ranked[0]
+    # A provider failure (rate limit, 5xx) on the top pick falls back to the
+    # next-best ranked model rather than surfacing "the answer stream failed"
+    # to the user - see backend/chat/answer.py's stream_direct/stream_synthesis.
+    answer_fallback = ranked[1][0] if len(ranked) > 1 else None
     model_choices = [
         {"id": s.id, "role": s.role, "model": ranked[i % len(ranked)][0],
          "reason": ranked[i % len(ranked)][1]}
@@ -199,6 +203,12 @@ async def run_turn(
         "model_choices": model_choices,
         "answer_model": answer_model,
         "answer_model_reason": answer_model_reason,
+        # The graph was already being built for replay provenance - sending it
+        # here too is what lets the UI draw this turn's workflow instead of
+        # only knowing its hash. Nodes/edges only; locked/config_hash carry no
+        # meaning for a chat turn (never approved, never re-run in place).
+        "graph": {"nodes": [n.model_dump(exclude_none=True) for n in graph.nodes],
+                  "edges": [e.model_dump() for e in graph.edges]},
     }}
 
     if store:
@@ -244,7 +254,9 @@ async def run_turn(
         contributions = await asyncio.gather(*[
             _bounded(
                 contribute(question, s.id, s.role,
-                           ranked[i % len(ranked)][0], seed=seed),
+                           ranked[i % len(ranked)][0], seed=seed,
+                           fallback_model=ranked[(i + 1) % len(ranked)][0]
+                           if len(ranked) > 1 else None),
                 s.id,
             )
             for i, s in enumerate(plan.specialists)
@@ -308,9 +320,11 @@ async def run_turn(
     yield {"event": "status", "data": {"stage": "answering"}}
     chunks: list[str] = []
     gen = (
-        stream_synthesis(question, contributions, answer_model, history=history)
+        stream_synthesis(question, contributions, answer_model, history=history,
+                          fallback_model=answer_fallback)
         if plan.needs_council
-        else stream_direct(question, answer_model, history=history)
+        else stream_direct(question, answer_model, history=history,
+                            fallback_model=answer_fallback)
     )
     try:
         async for piece in gen:

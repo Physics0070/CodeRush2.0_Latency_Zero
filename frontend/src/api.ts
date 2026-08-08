@@ -171,6 +171,9 @@ export interface PlanInfo {
   model_choices: { id: string; role: string; model: string; reason: string }[]
   answer_model: string
   answer_model_reason: string
+  // Nodes/edges only for a chat turn's graph - no config_hash/locked meaning
+  // applies (never approved, never re-run in place, unlike an Orchestrator run).
+  graph: { nodes: GraphNode[]; edges: GraphEdge[] }
 }
 
 export interface SpecialistInfo {

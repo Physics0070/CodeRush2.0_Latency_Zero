@@ -74,8 +74,13 @@ function AcoNode({ data }: NodeProps<Data>) {
 
 const nodeTypes = { aco: AcoNode }
 
+/** Only nodes/edges are read - a chat turn's graph carries no config_hash or
+ * locked state (never approved, never re-run in place), so callers pass a
+ * plain {nodes, edges} shape rather than a fake full GraphSpec. */
+type Drawable = Pick<GraphSpec, 'nodes' | 'edges'>
+
 /** Lays the graph out by dependency level, so the parallel row reads as parallel. */
-function layout(graph: GraphSpec): Record<string, { x: number; y: number }> {
+function layout(graph: Drawable): Record<string, { x: number; y: number }> {
   const parents = (id: string) => graph.edges.filter((e) => e.to_node === id).map((e) => e.from_node)
   const compensators = new Set(graph.nodes.filter((n) => n.type === 'compensate').map((n) => n.id))
 
@@ -109,7 +114,7 @@ function layout(graph: GraphSpec): Record<string, { x: number; y: number }> {
 }
 
 export function GraphCanvas({ graph, statuses, selected, onSelect }: {
-  graph: GraphSpec
+  graph: Drawable
   statuses: Record<string, NodeStatus>
   selected: string | null
   onSelect: (id: string) => void

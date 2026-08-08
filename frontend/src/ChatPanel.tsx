@@ -11,7 +11,8 @@ import {
   type Benchmarks, type ChatMessage, type PlanInfo, type SpecialistInfo,
   streamChat,
 } from './api'
-import { Badge, Button, Spinner } from './ui'
+import { GraphCanvas, type NodeStatus } from './GraphCanvas'
+import { Badge, Button, Empty, Spinner } from './ui'
 
 interface Turn {
   question: string
@@ -22,6 +23,76 @@ interface Turn {
   status?: string
   done: boolean
   error?: string
+}
+
+/**
+ * Conversation persistence. There is no login in this app, so a conversation
+ * has no natural server-side owner - localStorage (browser-scoped) is the
+ * right home for it, not a stretch to avoid building auth. Capped well above
+ * the "at least 10" floor rather than tuned to exactly 10.
+ */
+interface StoredConversation {
+  id: string
+  title: string
+  turns: Turn[]
+  updatedAt: number
+}
+
+const STORAGE_KEY = 'aco.chat.conversations'
+const MAX_STORED = 50
+
+function loadConversations(): StoredConversation[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY)
+    const parsed = raw ? JSON.parse(raw) : []
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    return []
+  }
+}
+
+function saveConversations(list: StoredConversation[]) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(list.slice(0, MAX_STORED)))
+  } catch {
+    // Storage full or unavailable (private browsing) - the chat still works
+    // this session, it just won't survive a reload.
+  }
+}
+
+function titleFor(turns: Turn[]): string {
+  const first = turns[0]?.question.trim() || 'New chat'
+  return first.length > 48 ? `${first.slice(0, 48)}…` : first
+}
+
+function newConversationId(): string {
+  return typeof crypto !== 'undefined' && 'randomUUID' in crypto
+    ? crypto.randomUUID()
+    : `c${Date.now()}_${Math.random().toString(36).slice(2)}`
+}
+
+/** Per-turn node status, derived from the same SSE data already rendered in
+ * the transcript - no separate event vocabulary needed for the chat graph. */
+function deriveChatStatuses(turn: Turn): Record<string, NodeStatus> {
+  const p = turn.plan
+  const s: Record<string, NodeStatus> = {}
+  if (!p) return s
+
+  if (p.route === 'council') {
+    s.fanout = 'done'
+    for (const spec of p.specialists) {
+      const reported = turn.specialists.find((x) => x.id === spec.id)
+      s[spec.id] = reported ? (reported.error ? 'failed' : 'done') : 'running'
+    }
+    s.join = turn.specialists.length >= p.specialists.length ? 'done' : 'pending'
+  }
+
+  if (turn.error) s.answer = 'failed'
+  else if (turn.done) s.answer = 'done'
+  else if (turn.answer || turn.status === 'answering') s.answer = 'running'
+  else s.answer = 'pending'
+
+  return s
 }
 
 const STAGE_LABEL: Record<string, string> = {
@@ -244,11 +315,87 @@ const SUGGESTIONS = [
   'Review the trade-offs of event sourcing for an audit system',
 ]
 
+function ConversationSidebar({ conversations, activeId, onSelect, onNew }: {
+  conversations: StoredConversation[]
+  activeId: string
+  onSelect: (id: string) => void
+  onNew: () => void
+}) {
+  return (
+    <aside className="chat-sidebar">
+      <div className="chat-sidebar-head">
+        <span className="chat-sidebar-title">Chats</span>
+        <button className="chat-sidebar-new" onClick={onNew}>+ New</button>
+      </div>
+      <div className="chat-sidebar-list">
+        {conversations.length === 0 && (
+          <p className="chat-sidebar-empty">Your conversations will appear here.</p>
+        )}
+        {conversations.map((c) => (
+          <button
+            key={c.id}
+            onClick={() => onSelect(c.id)}
+            className={`chat-sidebar-item ${c.id === activeId ? 'is-active' : ''}`}
+          >
+            <span className="chat-sidebar-item-title">{c.title}</span>
+            <span className="chat-sidebar-item-meta">
+              {c.turns.length} turn{c.turns.length === 1 ? '' : 's'}
+            </span>
+          </button>
+        ))}
+      </div>
+    </aside>
+  )
+}
+
+function WorkflowPanel({ turn }: { turn: Turn | undefined }) {
+  const [selected, setSelected] = useState<string | null>(null)
+  const p = turn?.plan
+
+  return (
+    <aside className="workflow-panel">
+      <div className="workflow-head">
+        <h4>Workflow</h4>
+        {p && (
+          <span className="workflow-sub">
+            {p.route === 'fast' ? 'answered directly' : `${p.specialists.length} specialists`}
+          </span>
+        )}
+      </div>
+
+      {p ? (
+        <div className="workflow-canvas">
+          <GraphCanvas
+            graph={p.graph} statuses={deriveChatStatuses(turn!)}
+            selected={selected} onSelect={setSelected}
+          />
+        </div>
+      ) : (
+        <Empty icon="◆" title="No workflow yet">
+          Ask a question and its routing - direct answer or parallel
+          specialists - will be drawn here as it runs.
+        </Empty>
+      )}
+
+      {p && p.clarifying_questions.length > 0 && (
+        <div className="workflow-questions">
+          <h5>Could be more specific</h5>
+          <ul>
+            {p.clarifying_questions.map((q, i) => <li key={i}>{q}</li>)}
+          </ul>
+        </div>
+      )}
+    </aside>
+  )
+}
+
 export function ChatPanel({ models }: { models: string[] }) {
   const [turns, setTurns] = useState<Turn[]>([])
   const [input, setInput] = useState('')
   const [busy, setBusy] = useState(false)
   const [open, setOpen] = useState<number | null>(null)
+  const [conversations, setConversations] = useState<StoredConversation[]>(loadConversations)
+  const [activeId, setActiveId] = useState<string>(newConversationId)
   const abortRef = useRef<(() => void) | null>(null)
   const endRef = useRef<HTMLDivElement>(null)
   const taRef = useRef<HTMLTextAreaElement>(null)
@@ -257,9 +404,47 @@ export function ChatPanel({ models }: { models: string[] }) {
     endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
   }, [turns])
 
+  // Persist the active conversation on every change. Skipped while empty so
+  // opening the app (or hitting "New") doesn't clutter the sidebar with
+  // placeholders nobody asked anything in yet.
+  useEffect(() => {
+    if (turns.length === 0) return
+    setConversations((prev) => {
+      const updated: StoredConversation = {
+        id: activeId, title: titleFor(turns), turns, updatedAt: Date.now(),
+      }
+      const next = prev.some((c) => c.id === activeId)
+        ? prev.map((c) => (c.id === activeId ? updated : c))
+        : [updated, ...prev]
+      next.sort((a, b) => b.updatedAt - a.updatedAt)
+      saveConversations(next)
+      return next
+    })
+  }, [turns, activeId])
+
   const patch = useCallback((i: number, fn: (t: Turn) => Turn) => {
     setTurns((prev) => prev.map((t, j) => (j === i ? fn(t) : t)))
   }, [])
+
+  const startNew = useCallback(() => {
+    abortRef.current?.()
+    setBusy(false)
+    setOpen(null)
+    setTurns([])
+    setActiveId(newConversationId())
+  }, [])
+
+  const loadConversation = useCallback((id: string) => {
+    const convo = conversations.find((c) => c.id === id)
+    if (!convo) return
+    abortRef.current?.()
+    setBusy(false)
+    setOpen(null)
+    setActiveId(id)
+    // A turn that was mid-stream when the tab closed has no stream to resume -
+    // show it settled rather than spinning forever.
+    setTurns(convo.turns.map((t) => ({ ...t, done: true, status: undefined })))
+  }, [conversations])
 
   const send = useCallback((question: string) => {
     const q = question.trim()
@@ -311,7 +496,12 @@ export function ChatPanel({ models }: { models: string[] }) {
   }
 
   return (
-    <div className="chat-wrap">
+    <div className="chat-shell">
+      <ConversationSidebar
+        conversations={conversations} activeId={activeId}
+        onSelect={loadConversation} onNew={startNew}
+      />
+      <div className="chat-wrap">
       <div className="chat-scroll">
         {turns.length === 0 && (
           <div className="chat-hero">
@@ -388,6 +578,9 @@ export function ChatPanel({ models }: { models: string[] }) {
       {open !== null && turns[open] && (
         <BenchDrawer turn={turns[open]} onClose={() => setOpen(null)} />
       )}
+      </div>
+
+      <WorkflowPanel turn={turns[turns.length - 1]} />
     </div>
   )
 }
