@@ -244,6 +244,27 @@ body {
   border-radius: 5px;
   padding: 1px 5px;
 }
+.chat-link {
+  color: var(--color-accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.chat-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 10px 0;
+  font-size: 12.5px;
+}
+.chat-table th, .chat-table td {
+  border: 1px solid var(--color-line);
+  padding: 6px 9px;
+  text-align: left;
+}
+.chat-table th {
+  background: var(--color-surface-1);
+  font-weight: 650;
+  color: var(--color-ink);
+}
 
 .thinking {
   display: flex; align-items: center; gap: 9px;

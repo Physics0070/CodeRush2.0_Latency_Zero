@@ -75,7 +75,7 @@ export default function App() {
   })
 
   const compile = (answers: Record<string, string>) => guard('compile', async () => {
-    const r = await api.compile(goal, answers, models)
+    const r = await api.compile(goal, answers, models, clarification?.plan.intent)
     setGraph(r.graph); setCouncil(r.council); setClarification(null)
   })
 
