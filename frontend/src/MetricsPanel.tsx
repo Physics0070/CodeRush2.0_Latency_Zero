@@ -1,8 +1,9 @@
+import { useEffect, useState } from 'react'
 import {
-  Bar, BarChart, CartesianGrid, Cell, Line, LineChart,
+  Bar, BarChart, CartesianGrid, Cell, LabelList, Legend, Line, LineChart,
   ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from 'recharts'
-import type { MarginalValueReport, RunMetrics } from './api'
+import { api, type MarginalValueReport, type ModelProfile, type RunMetrics } from './api'
 import { Empty, Stat } from './ui'
 
 const AXIS = { stroke: '#71717a', fontSize: 10 }
@@ -22,6 +23,20 @@ const MIG_FLOOR = 0.1
 /** Must match DUPLICATE_THRESHOLD in backend/metrics/metrics.py. */
 const DUPLICATE_THRESHOLD = 0.75
 
+// Categorical, dark-mode, slots 1-3 of the validated default palette (blue,
+// orange, aqua) - validated against this app's own chart surface (#1a1a1e):
+// worst adjacent CVD ΔE 9.4 (deutan), normal-vision ΔE 26.5, all >=3:1 contrast.
+const MODEL_COLORS = ['#3987e5', '#d95926', '#199e70']
+
+const AXIS_LABEL: Record<keyof ModelProfile, string> = {
+  reasoning_logic: 'Reasoning', task_proficiency: 'Task fit', context_relation: 'Context',
+  agentic_capability: 'Agentic', factuality_safety: 'Safety', real_world_data: 'Real-world',
+}
+
+function shortModelName(m: string): string {
+  return m.replace(/^(ollama|groq|gemini):/, '')
+}
+
 function migColor(v: number) {
   if (v < MIG_FLOOR) return 'var(--color-failed)'
   if (v < 0.3) return '#fbbf24'
@@ -32,6 +47,12 @@ export function MetricsPanel({ metrics, report }: {
   metrics: RunMetrics | null
   report: MarginalValueReport | null
 }) {
+  const [catalog, setCatalog] = useState<{ model: string; profile: ModelProfile }[]>([])
+
+  useEffect(() => {
+    api.modelCatalog().then((r) => setCatalog(r.models)).catch(() => {})
+  }, [])
+
   if (!metrics) return <Empty>Run the graph, then metrics appear here.</Empty>
 
   const migData = metrics.agents.map((a) => ({
@@ -139,6 +160,46 @@ export function MetricsPanel({ metrics, report }: {
           </div>
           <p className="text-[11px] text-[var(--color-ink)] mt-1.5 leading-relaxed">
             {report.recommendation}
+          </p>
+        </div>
+      )}
+
+      {catalog.length > 0 && (
+        <div>
+          <h3 className="text-[11px] uppercase tracking-wider text-[var(--color-ink-faint)] mb-2">
+            Model routing axes
+          </h3>
+          <div className="h-[190px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart
+                data={(Object.keys(AXIS_LABEL) as (keyof ModelProfile)[]).map((axis) => {
+                  const row: Record<string, string | number> = { axis: AXIS_LABEL[axis] }
+                  catalog.forEach((c) => { row[shortModelName(c.model)] = c.profile[axis] })
+                  return row
+                })}
+                margin={{ top: 10, right: 8, bottom: 4, left: -22 }}
+              >
+                <CartesianGrid stroke={GRID} vertical={false} />
+                <XAxis dataKey="axis" tick={AXIS} axisLine={false} tickLine={false} />
+                <YAxis domain={[0, 1]} tick={AXIS} axisLine={false} tickLine={false} />
+                <Tooltip contentStyle={tooltipStyle} />
+                <Legend wrapperStyle={{ fontSize: 10, color: '#a1a1aa' }} />
+                {catalog.map((c, i) => (
+                  <Bar
+                    key={c.model} dataKey={shortModelName(c.model)}
+                    fill={MODEL_COLORS[i % MODEL_COLORS.length]} radius={[3, 3, 0, 0]}
+                  >
+                    <LabelList
+                      dataKey={shortModelName(c.model)} position="top" fontSize={8} fill="#71717a"
+                      formatter={(v: unknown) => (typeof v === 'number' ? v.toFixed(2) : '')}
+                    />
+                  </Bar>
+                ))}
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+          <p className="text-[11px] text-[var(--color-ink-faint)] mt-1.5 leading-relaxed">
+            Curated per-model estimates, not live-measured — see backend/providers/catalog.py.
           </p>
         </div>
       )}

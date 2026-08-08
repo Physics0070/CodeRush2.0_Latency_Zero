@@ -122,26 +122,32 @@ function layout(graph: Drawable): Record<string, { x: number; y: number }> {
   return pos
 }
 
+const EMPTY_GRAPH: Drawable = { nodes: [], edges: [] }
+
 export function GraphCanvas({ graph, statuses, selected, onSelect }: {
-  graph: Drawable
+  graph: Drawable | null | undefined
   statuses: Record<string, NodeStatus>
   selected: string | null
   onSelect: (id: string) => void
 }) {
-  const pos = useMemo(() => layout(graph), [graph])
+  // A caller mid-stream (the chat WorkflowPanel draws the *current* turn's
+  // graph as it arrives) can have a turn with no graph yet - render an empty
+  // canvas rather than crash the whole tree on graph.nodes of undefined.
+  const safeGraph = graph ?? EMPTY_GRAPH
+  const pos = useMemo(() => layout(safeGraph), [safeGraph])
 
   const nodes: Node<Data>[] = useMemo(
-    () => graph.nodes.map((n) => ({
+    () => safeGraph.nodes.map((n) => ({
       id: n.id,
       type: 'aco',
       position: pos[n.id] ?? { x: 0, y: 0 },
       data: { node: n, status: statuses[n.id] ?? 'pending', onSelect, selected: selected === n.id },
     })),
-    [graph, pos, statuses, selected, onSelect],
+    [safeGraph, pos, statuses, selected, onSelect],
   )
 
   const edges: Edge[] = useMemo(
-    () => graph.edges.map((e, i) => ({
+    () => safeGraph.edges.map((e, i) => ({
       id: `e${i}`,
       source: e.from_node,
       target: e.to_node,
@@ -152,7 +158,7 @@ export function GraphCanvas({ graph, statuses, selected, onSelect }: {
         ? undefined
         : { strokeDasharray: '4 4' },
     })),
-    [graph, statuses],
+    [safeGraph, statuses],
   )
 
   return (

@@ -21,6 +21,7 @@ from backend.chat.answer import (
     stream_direct,
     stream_synthesis,
 )
+from backend.chat.files import generate_file, store_file, wants_file
 from backend.chat.planner import Plan, pick_planner_model, plan_for
 from backend.engine.spec import AgentSpec, Edge, GraphSpec, Node
 from backend.events import EventStore, EventType
@@ -149,6 +150,8 @@ async def run_turn(
     models: list[str],
     seed: int = 42,
     store: EventStore | None = None,
+    force_web_search: bool = False,
+    forced_model: str | None = None,
 ) -> AsyncIterator[dict]:
     """Yield `{"event": ..., "data": ...}` for the whole turn.
 
@@ -176,11 +179,20 @@ async def run_turn(
     # this exact ranking.
     fan_models = specialist_models(models)
     ranked = rank_models(fan_models, plan.intent)
-    answer_model, answer_model_reason = ranked[0]
-    # A provider failure (rate limit, 5xx) on the top pick falls back to the
-    # next-best ranked model rather than surfacing "the answer stream failed"
-    # to the user - see backend/chat/answer.py's stream_direct/stream_synthesis.
-    answer_fallback = ranked[1][0] if len(ranked) > 1 else None
+    if forced_model and forced_model in models:
+        # The user picked which model answers - leave specialist assignment on
+        # auto below; forcing the whole council to one model would defeat the
+        # point of a council, and the user asked to control the answer, not
+        # the fanout.
+        answer_model, answer_model_reason = forced_model, "manually selected"
+        fallback_candidates = [m for m, _ in ranked if m != forced_model]
+        answer_fallback = fallback_candidates[0] if fallback_candidates else None
+    else:
+        answer_model, answer_model_reason = ranked[0]
+        # A provider failure (rate limit, 5xx) on the top pick falls back to the
+        # next-best ranked model rather than surfacing "the answer stream failed"
+        # to the user - see backend/chat/answer.py's stream_direct/stream_synthesis.
+        answer_fallback = ranked[1][0] if len(ranked) > 1 else None
     model_choices = [
         {"id": s.id, "role": s.role, "model": ranked[i % len(ranked)][0],
          "reason": ranked[i % len(ranked)][1]}
@@ -327,10 +339,11 @@ async def run_turn(
     # replay path completely unchanged - whatever text the answer was built
     # from is exactly what gets stored and replayed.
     answer_question = question
-    if needs_fresh_data(question):
+    search_results: list[dict] = []
+    if force_web_search or needs_fresh_data(question):
         try:
-            results = await web_search(question)
-            web_context = render_results(results)
+            search_results = await web_search(question)
+            web_context = render_results(search_results)
             if web_context:
                 answer_question = f"{question}\n\n{web_context}"
         except Exception as e:
@@ -357,6 +370,21 @@ async def run_turn(
 
     answer = "".join(chunks)
     total_ms = int((time.perf_counter() - t0) * 1000)
+
+    # ---------- file (optional) ----------
+    # Sits after the token stream, not inside it - this must never touch the
+    # SSE token-by-token path the 34s->4s latency fix depends on. A failure
+    # here (bad JSON, unsupported content) just means no file event; the text
+    # answer above already stands on its own.
+    file_kind = wants_file(question)
+    if file_kind:
+        generated = await generate_file(question, file_kind, answer_model)
+        if generated:
+            content, filename = generated
+            file_id = store_file(content, filename, file_kind)
+            yield {"event": "file", "data": {
+                "file_id": file_id, "filename": filename, "kind": file_kind,
+            }}
 
     # ---------- benchmarks ----------
     spec_latency = sum(c.get("latency_ms") or 0 for c in contributions)
@@ -396,6 +424,10 @@ async def run_turn(
         "answer_chars": len(answer),
         "marginal_information_gain": _mig(contributions) if contributions else {
             "available": False, "per_agent": {}, "overlapping_pairs": []},
+        "web_search": {
+            "used": bool(search_results),
+            "sources": [{"title": r["title"], "url": r["url"]} for r in search_results],
+        },
     }
 
     # Neither `bench` nor the final answer depends on the store writes below -

@@ -124,8 +124,17 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
   return r.json() as Promise<T>
 }
 
+export interface ModelProfile {
+  reasoning_logic: number; task_proficiency: number; context_relation: number
+  agentic_capability: number; factuality_safety: number; real_world_data: number
+}
+
 export const api = {
   models: () => req<{ models: string[]; providers: string[] }>('/api/models'),
+
+  modelCatalog: () =>
+    req<{ models: { model: string; matched_key: string; profile: ModelProfile }[] }>(
+      '/api/models/catalog'),
 
   clarify: (goal: string) =>
     req<{
@@ -214,6 +223,12 @@ export interface Benchmarks {
     per_agent: Record<string, number>
     overlapping_pairs: { a: string; b: string; similarity: number }[]
   }
+  web_search: { used: boolean; sources: { title: string; url: string }[] }
+}
+
+export interface ChatFile {
+  file_id: string; filename: string
+  kind: 'xlsx' | 'csv' | 'docx' | 'pdf' | 'pptx' | 'md' | 'txt'
 }
 
 export interface ChatHandlers {
@@ -222,6 +237,7 @@ export interface ChatHandlers {
   onSpecialist?: (s: SpecialistInfo) => void
   onToken?: (t: string) => void
   onBenchmarks?: (b: Benchmarks) => void
+  onFile?: (f: ChatFile) => void
   onError?: (detail: string) => void
   /** Fires once when the stream closes, however it closed. */
   onDone?: () => void
@@ -235,17 +251,23 @@ export interface ChatHandlers {
  * function so a user can stop a long answer.
  */
 export function streamChat(
-  body: { message: string; history: ChatMessage[]; models?: string[] },
+  body: {
+    message: string; history: ChatMessage[]; models?: string[]
+    forcedModel?: string; forceWebSearch?: boolean
+  },
   h: ChatHandlers,
 ): () => void {
   const ctrl = new AbortController()
+  const { forcedModel, forceWebSearch, ...rest } = body
 
   ;(async () => {
     try {
       const r = await fetch(url('/api/chat'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
+        body: JSON.stringify({
+          ...rest, forced_model: forcedModel, force_web_search: !!forceWebSearch,
+        }),
         signal: ctrl.signal,
       })
       if (!r.ok || !r.body) {
@@ -274,6 +296,7 @@ export function streamChat(
           case 'specialist': h.onSpecialist?.(data as SpecialistInfo); break
           case 'token': h.onToken?.(data as string); break
           case 'benchmarks': h.onBenchmarks?.(data as Benchmarks); break
+          case 'file': h.onFile?.(data as ChatFile); break
           case 'error': h.onError?.((data as { detail: string }).detail); break
         }
       }

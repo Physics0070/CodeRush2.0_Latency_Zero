@@ -5,7 +5,7 @@ import json
 import logging
 import uuid
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request, Response
 from sse_starlette.sse import EventSourceResponse
 
 from backend.api.schemas import (
@@ -16,6 +16,7 @@ from backend.api.schemas import (
     MarginalValueRequest,
     RunRequest,
 )
+from backend.chat.files import get_file
 from backend.config import settings
 from backend.council import clarifying_questions, compile_graph, permission_prompt
 from backend.engine import Executor, GraphSpec
@@ -78,6 +79,20 @@ async def models() -> dict:
     return {"models": await _default_models(), "providers": configured_providers()}
 
 
+@router.get("/models/catalog")
+async def models_catalog() -> dict:
+    """Per-model scores across the 6 routing axes - curated estimates (see
+    backend/providers/catalog.py's own docstring), not live-measured. Exposes
+    what rank_models() already uses internally so the UI can chart it."""
+    from backend.providers.catalog import profile_for
+
+    out = []
+    for m in await _default_models():
+        profile, key = profile_for(m)
+        out.append({"model": m, "matched_key": key, "profile": profile.model_dump()})
+    return {"models": out}
+
+
 @router.post("/chat")
 async def chat(req: ChatRequest, request: Request) -> EventSourceResponse:
     """Ask anything, get an answer. SSE so the answer streams like a chat should.
@@ -101,7 +116,8 @@ async def chat(req: ChatRequest, request: Request) -> EventSourceResponse:
             store = None
         try:
             async for evt in run_turn(
-                req.message, history=history, models=models_, seed=req.seed, store=store
+                req.message, history=history, models=models_, seed=req.seed, store=store,
+                force_web_search=req.force_web_search, forced_model=req.forced_model,
             ):
                 if await request.is_disconnected():
                     return
@@ -117,6 +133,24 @@ async def chat(req: ChatRequest, request: Request) -> EventSourceResponse:
     # edge is nginx-family and buffers a response by default, which would hold
     # the whole stream until it ends.
     return EventSourceResponse(gen(), ping=15, headers={"X-Accel-Buffering": "no"})
+
+
+@router.get("/chat/files/{file_id}")
+async def chat_file(file_id: str) -> Response:
+    """One-time download for a file generated during a chat turn.
+
+    Not a document store: the in-memory cache this reads from (see
+    backend/chat/files.py) has a short TTL and nothing survives a restart -
+    ask again and it regenerates rather than 500ing.
+    """
+    entry = get_file(file_id)
+    if not entry:
+        raise HTTPException(404, "file not found or expired - ask again to regenerate it")
+    content, filename, mime = entry
+    return Response(
+        content=content, media_type=mime,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @router.post("/chat/plan")

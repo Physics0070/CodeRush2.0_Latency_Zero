@@ -170,7 +170,12 @@ class Executor:
             )
             for node_id, outcome in zip(runnable, settled, strict=True):
                 if isinstance(outcome, BaseException):
-                    log.exception("node %s raised", node_id)
+                    # log.exception() reads sys.exc_info(), which is empty out
+                    # here - this is a gather(return_exceptions=True) result,
+                    # not an active except block. It logged "NoneType: None"
+                    # for every branch failure instead of the real error;
+                    # passing outcome via exc_info= attaches the actual one.
+                    log.error("node %s raised", node_id, exc_info=outcome)
                     res = NodeResult(node_id=node_id, ok=False, error=str(outcome))
                 else:
                     res = outcome

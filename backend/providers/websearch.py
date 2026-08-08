@@ -23,9 +23,10 @@ _WORD = re.compile(r"[A-Za-z0-9']+")
 # machinery" pattern backend/chat/planner.py already uses for obviously_simple.
 _FRESH_MARKERS = (
     "today", "latest", "current", "currently", "this year", "this week",
-    "right now", "recent", "recently", "news", "price of", "stock",
-    "who is the current", "score", "release date", "just released",
-    "as of", "up to date", "up-to-date",
+    "this month", "right now", "recent", "recently", "news", "price of",
+    "stock", "who is the current", "score", "release date", "just released",
+    "as of", "up to date", "up-to-date", "weather", "forecast",
+    "who won", "who is winning", "trending", "happening now", "live",
 )
 _YEAR = re.compile(r"\b20(2[5-9]|[3-9]\d)\b")
 

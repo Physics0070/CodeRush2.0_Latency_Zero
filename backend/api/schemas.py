@@ -68,6 +68,10 @@ class ChatRequest(BaseModel):
     history: list[ChatMessage] = Field(default_factory=list, max_length=40)
     models: list[str] = Field(default_factory=list, max_length=6)
     seed: int = Field(default=42, ge=0, le=2**31 - 1)
+    # User-driven overrides on top of the automatic routing. None/False leaves
+    # everything on auto - same behavior as before either field existed.
+    force_web_search: bool = False
+    forced_model: str | None = Field(default=None, max_length=128)
 
     @field_validator("message")
     @classmethod

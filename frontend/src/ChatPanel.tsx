@@ -8,7 +8,8 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
-  type Benchmarks, type ChatMessage, type PlanInfo, type SpecialistInfo,
+  API_BASE,
+  type Benchmarks, type ChatFile, type ChatMessage, type PlanInfo, type SpecialistInfo,
   streamChat,
 } from './api'
 import { GraphCanvas, type NodeStatus } from './GraphCanvas'
@@ -20,9 +21,19 @@ interface Turn {
   plan?: PlanInfo
   specialists: SpecialistInfo[]
   bench?: Benchmarks
+  file?: ChatFile
   status?: string
   done: boolean
   error?: string
+}
+
+const FILE_KIND_LABEL: Record<ChatFile['kind'], string> = {
+  xlsx: 'Excel sheet', csv: 'CSV file', docx: 'Word document', pdf: 'PDF',
+  pptx: 'Slide deck', md: 'Markdown file', txt: 'Text file',
+}
+
+function shortModelName(m: string): string {
+  return m.replace(/^(ollama|groq|gemini):/, '')
 }
 
 /**
@@ -317,6 +328,17 @@ function BenchDrawer({ turn, onClose }: { turn: Turn; onClose: () => void }) {
           </section>
         )}
 
+        {b.web_search?.used && (
+          <section className="drawer-sec">
+            <h4>Web search</h4>
+            <div className="drawer-note">
+              {renderMarkdown(
+                b.web_search.sources.map((s) => `- [${s.title}](${s.url})`).join('\n'),
+              )}
+            </div>
+          </section>
+        )}
+
         {mig.available && mig.overlapping_pairs.length > 0 && (
           <section className="drawer-sec">
             <h4>Overlap detected</h4>
@@ -441,6 +463,8 @@ export function ChatPanel({ models }: { models: string[] }) {
   const [input, setInput] = useState('')
   const [busy, setBusy] = useState(false)
   const [open, setOpen] = useState<number | null>(null)
+  const [forceSearch, setForceSearch] = useState(false)
+  const [selectedModel, setSelectedModel] = useState<string>('auto')
   const [conversations, setConversations] = useState<StoredConversation[]>(loadConversations)
   const [activeId, setActiveId] = useState<string>(newConversationId)
   const abortRef = useRef<(() => void) | null>(null)
@@ -514,7 +538,11 @@ export function ChatPanel({ models }: { models: string[] }) {
     setBusy(true)
 
     abortRef.current = streamChat(
-      { message: q, history, models },
+      {
+        message: q, history, models,
+        forcedModel: selectedModel === 'auto' ? undefined : selectedModel,
+        forceWebSearch: forceSearch,
+      },
       {
         onStatus: (stage) => patch(index, (t) => ({ ...t, status: stage })),
         onPlan: (plan) => patch(index, (t) => ({ ...t, plan })),
@@ -522,6 +550,7 @@ export function ChatPanel({ models }: { models: string[] }) {
           patch(index, (t) => ({ ...t, specialists: [...t.specialists, s] })),
         onToken: (tok) => patch(index, (t) => ({ ...t, answer: t.answer + tok })),
         onBenchmarks: (bench) => patch(index, (t) => ({ ...t, bench })),
+        onFile: (file) => patch(index, (t) => ({ ...t, file })),
         onError: (detail) => {
           patch(index, (t) => ({ ...t, error: detail, done: true, status: undefined }))
           setBusy(false)
@@ -534,7 +563,7 @@ export function ChatPanel({ models }: { models: string[] }) {
         },
       },
     )
-  }, [busy, models, patch, turns])
+  }, [busy, models, patch, turns, selectedModel, forceSearch])
 
   const stop = () => {
     abortRef.current?.()
@@ -589,12 +618,44 @@ export function ChatPanel({ models }: { models: string[] }) {
 
             {t.answer && <div className="bubble-bot">{renderMarkdown(t.answer)}</div>}
 
+            {t.file && (
+              <a
+                className="file-chip"
+                href={`${API_BASE}/api/chat/files/${t.file.file_id}`}
+                download={t.file.filename}
+              >
+                ⬇ {FILE_KIND_LABEL[t.file.kind]} · {t.file.filename}
+              </a>
+            )}
+
             {t.error && <div className="turn-error">{t.error}</div>}
 
             <RouteLine turn={t} onOpen={() => setOpen(i)} />
           </article>
         ))}
         <div ref={endRef} />
+      </div>
+
+      <div className="composer-tools">
+        <button
+          type="button"
+          className={`composer-toggle${forceSearch ? ' is-active' : ''}`}
+          onClick={() => setForceSearch((v) => !v)}
+          title="Force a web search for this message, instead of only when the question looks like it needs current information"
+        >
+          🔎 Search {forceSearch ? 'on' : 'auto'}
+        </button>
+        <select
+          className="composer-select"
+          value={selectedModel}
+          onChange={(e) => setSelectedModel(e.target.value)}
+          title="Which model answers - auto picks the best fit for the question"
+        >
+          <option value="auto">Auto (best fit)</option>
+          {models.map((m) => (
+            <option key={m} value={m}>{shortModelName(m)}</option>
+          ))}
+        </select>
       </div>
 
       <div className="composer">
