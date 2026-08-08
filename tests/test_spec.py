@@ -2,7 +2,7 @@
 recursive validation, and node-id collection. Pure - no network, no Turso.
 """
 
-from backend.engine.spec import AgentSpec, CURRENT_VERSION, Edge, GraphSpec, Node
+from backend.engine.spec import CURRENT_VERSION, AgentSpec, Edge, GraphSpec, Node
 
 SCHEMA = {"type": "object"}
 
