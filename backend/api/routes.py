@@ -359,6 +359,19 @@ async def metrics(run_id: str) -> dict:
         return (await compute(store, run_id)).model_dump()
 
 
+@router.get("/workflow-dna/history")
+async def workflow_dna_history(limit: int = 20) -> dict:
+    """Recent Workflow DNA executions, newest first — powers the frontend's
+    Evolution History panel. Read-only, entirely separate from the main
+    event log; safe to call even if no run has ever used Workflow DNA yet
+    (returns an empty list)."""
+    from backend.workflow_dna.history.repository import WorkflowHistoryRepository
+
+    repo = WorkflowHistoryRepository()
+    records = repo.list_recent(limit=limit)
+    return {"executions": [r.to_dict() for r in records]}
+
+
 @router.post("/runs/{run_id}/replay")
 async def replay(run_id: str) -> dict:
     from backend.replay import replay_run

@@ -146,3 +146,17 @@ class WorkflowHistoryRepository:
             return conn.execute("SELECT COUNT(*) FROM workflow_executions").fetchone()[0]
         finally:
             conn.close()
+
+    def list_recent(self, limit: int = 20) -> List[WorkflowExecutionRecord]:
+        """Most recent EXECUTED workflows (fitness IS NOT NULL), newest first.
+        Powers the frontend's Evolution History panel."""
+        conn = self._connect()
+        try:
+            rows = conn.execute(
+                "SELECT * FROM workflow_executions WHERE fitness IS NOT NULL "
+                "ORDER BY timestamp DESC LIMIT ?",
+                (limit,),
+            ).fetchall()
+            return [WorkflowExecutionRecord.from_row(dict(r)) for r in rows]
+        finally:
+            conn.close()
