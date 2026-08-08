@@ -43,8 +43,8 @@ features the platform spec declares. They stay in the cleaned dataset
 for optional future analysis, just not passed to the regressor.
 """
 
-from pathlib import Path
 import json
+from pathlib import Path
 
 import pandas as pd
 
@@ -108,7 +108,9 @@ def encode_mutation_type(values: pd.Series) -> pd.Series:
     mapping = {name: idx for idx, name in enumerate(MUTATION_TYPE_VOCABULARY)}
     unknown = set(values.unique()) - set(mapping)
     if unknown:
-        raise ValueError(f"Unrecognized mutation type(s): {unknown}. Update MUTATION_TYPE_VOCABULARY.")
+        raise ValueError(
+            f"Unrecognized mutation type(s): {unknown}. Update MUTATION_TYPE_VOCABULARY."
+        )
     return values.map(mapping)
 
 

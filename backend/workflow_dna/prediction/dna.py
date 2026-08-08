@@ -11,7 +11,6 @@ here.
 """
 
 from dataclasses import dataclass
-from typing import Optional
 
 
 @dataclass
@@ -22,5 +21,5 @@ class WorkflowDNA:
     workflow_depth: int
     workflow_length: int
     mutation_type: str = "none"
-    parent_workflow: Optional[str] = None
+    parent_workflow: str | None = None
     generation: int = 1

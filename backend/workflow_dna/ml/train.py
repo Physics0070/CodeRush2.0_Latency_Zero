@@ -32,8 +32,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import joblib
 import pandas as pd
 from sklearn.ensemble import RandomForestRegressor
-from sklearn.model_selection import train_test_split, cross_val_score
-from sklearn.metrics import r2_score, mean_absolute_error, mean_squared_error
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+from sklearn.model_selection import cross_val_score, train_test_split
 
 from backend.workflow_dna.ml.feature_engineering import CANONICAL_FEATURE_COLUMNS
 

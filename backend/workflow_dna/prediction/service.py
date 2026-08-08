@@ -15,28 +15,28 @@ the "Predicted Fitness: 74" style panel the spec's UI section asks for.
 """
 
 from dataclasses import dataclass
-from typing import Optional
 
 import pandas as pd
 
-from backend.workflow_dna.ml.model_service import FitnessModelService
 from backend.workflow_dna.ml.feature_engineering import encode_mutation_type
+from backend.workflow_dna.ml.model_service import FitnessModelService
 from backend.workflow_dna.prediction.dna import WorkflowDNA
-from backend.workflow_dna.prediction.estimator import HistoricalFeatureEstimator, EstimatedOutcome
+from backend.workflow_dna.prediction.estimator import EstimatedOutcome, HistoricalFeatureEstimator
 
 
 @dataclass
 class PredictedFitnessResult:
     workflow_id: str
     predicted_fitness: float
-    estimated_outcome: EstimatedOutcome  # includes source="history"/"cold_start" for UI transparency
+    # includes source="history"/"cold_start" for UI transparency
+    estimated_outcome: EstimatedOutcome
 
 
 class PredictionService:
     def __init__(
         self,
-        model_service: Optional[FitnessModelService] = None,
-        estimator: Optional[HistoricalFeatureEstimator] = None,
+        model_service: FitnessModelService | None = None,
+        estimator: HistoricalFeatureEstimator | None = None,
     ):
         self.model_service = model_service or FitnessModelService()
         self.estimator = estimator or HistoricalFeatureEstimator()

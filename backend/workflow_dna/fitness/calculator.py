@@ -27,11 +27,11 @@ workflows, rather than hard-coded thresholds. Those stats are saved to
 disk so training-time and inference-time scoring stay on the same scale.
 """
 
-from dataclasses import dataclass, asdict
 import json
 import math
+from collections.abc import Iterable
+from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Iterable
 
 
 @dataclass

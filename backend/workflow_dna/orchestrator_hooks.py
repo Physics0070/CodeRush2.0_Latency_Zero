@@ -21,21 +21,20 @@ passenger, not a gatekeeper.
 """
 
 import logging
-from typing import Optional
 
 from backend.engine import GraphSpec, RunResult
 from backend.events import EventStore, EventType
-
 from backend.workflow_dna.prediction.dna import WorkflowDNA
-from backend.workflow_dna.service import WorkflowDNAService, DNADecision
+from backend.workflow_dna.service import DNADecision, WorkflowDNAService
 
 log = logging.getLogger("aco.workflow_dna")
 
-_service: Optional[WorkflowDNAService] = None
+_service: WorkflowDNAService | None = None
 
 
 def _get_service() -> WorkflowDNAService:
-    """Lazy singleton — the trained model + history DB connection only need to load once per process."""
+    """Lazy singleton — the trained model + history DB connection only need to
+    load once per process."""
     global _service
     if _service is None:
         _service = WorkflowDNAService()
@@ -70,7 +69,9 @@ def _dna_from_graph(graph: GraphSpec, workflow_id: str) -> WorkflowDNA:
     )
 
 
-async def predict_and_log(store: EventStore, graph: GraphSpec, workflow_id: str) -> Optional[DNADecision]:
+async def predict_and_log(
+    store: EventStore, graph: GraphSpec, workflow_id: str
+) -> DNADecision | None:
     """
     Predicts fitness for the workflow about to run, and — if predicted
     fitness is below threshold — generates ONE mutation suggestion for
@@ -109,7 +110,7 @@ async def record_and_log(
     graph: GraphSpec,
     workflow_id: str,
     run_result: RunResult,
-    predicted_fitness: Optional[float],
+    predicted_fitness: float | None,
 ) -> None:
     """
     Called after a run completes — successfully or with failed nodes,

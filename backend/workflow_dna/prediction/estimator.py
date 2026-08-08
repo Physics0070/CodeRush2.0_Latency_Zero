@@ -20,7 +20,6 @@ gets more accurate over time as real history accumulates.
 import json
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
 
 from backend.workflow_dna.history.repository import WorkflowHistoryRepository
 from backend.workflow_dna.prediction.dna import WorkflowDNA
@@ -40,7 +39,11 @@ class EstimatedOutcome:
 
 
 class HistoricalFeatureEstimator:
-    def __init__(self, repository: Optional[WorkflowHistoryRepository] = None, cold_start_path: Optional[str] = None):
+    def __init__(
+        self,
+        repository: WorkflowHistoryRepository | None = None,
+        cold_start_path: str | None = None,
+    ):
         self.repository = repository or WorkflowHistoryRepository()
         path = Path(cold_start_path) if cold_start_path else COLD_START_PATH
         if not path.exists():

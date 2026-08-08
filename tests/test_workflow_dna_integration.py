@@ -19,7 +19,6 @@ orchestrator's event store is faked, since that boundary is what this
 file is actually responsible for translating across.
 """
 
-import pytest
 
 from backend.engine import AgentSpec, Edge, GraphSpec, Node
 from backend.engine.executor import NodeResult, RunResult
@@ -62,11 +61,15 @@ class FakeEventStore:
 
 
 def _agent_node(node_id: str) -> Node:
-    return Node(id=node_id, type="agent", agent=AgentSpec(id=f"{node_id}_agent", role="r", system_contract="x"))
+    return Node(
+        id=node_id, type="agent",
+        agent=AgentSpec(id=f"{node_id}_agent", role="r", system_contract="x"),
+    )
 
 
 def test_dna_from_graph_counts_real_parallelism():
-    """Two independent agent nodes feeding a third -> depth 2, parallel=1, straight from GraphSpec.levels()."""
+    """Two independent agent nodes feeding a third -> depth 2, parallel=1,
+    straight from GraphSpec.levels()."""
     graph = GraphSpec(
         nodes=[_agent_node("a"), _agent_node("b"), _agent_node("c")],
         edges=[Edge(from_node="a", to_node="c"), Edge(from_node="b", to_node="c")],

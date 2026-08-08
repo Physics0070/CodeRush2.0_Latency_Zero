@@ -22,9 +22,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import pandas as pd
 
+from backend.workflow_dna.fitness.calculator import FitnessCalculator, NormalizationStats
+from backend.workflow_dna.ml.feature_engineering import CANONICAL_FEATURE_COLUMNS, engineer_features
 from backend.workflow_dna.ml.preprocessing import load_and_clean
-from backend.workflow_dna.ml.feature_engineering import engineer_features, CANONICAL_FEATURE_COLUMNS
-from backend.workflow_dna.fitness.calculator import NormalizationStats, FitnessCalculator
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 RAW_DATA_PATH = PROJECT_ROOT / "dataset" / "raw" / "workflow_dna_dataset.xlsx"

@@ -24,14 +24,13 @@ orchestrator should only ever need to call these two methods.
 """
 
 from dataclasses import dataclass
-from typing import Optional
 
-from backend.workflow_dna.prediction.dna import WorkflowDNA
-from backend.workflow_dna.prediction.service import PredictionService, PredictedFitnessResult
-from backend.workflow_dna.mutation.engine import MutationEngine
-from backend.workflow_dna.history.repository import WorkflowHistoryRepository
-from backend.workflow_dna.history.models import WorkflowExecutionRecord
 from backend.workflow_dna.fitness.calculator import FitnessCalculator, NormalizationStats
+from backend.workflow_dna.history.models import WorkflowExecutionRecord
+from backend.workflow_dna.history.repository import WorkflowHistoryRepository
+from backend.workflow_dna.mutation.engine import MutationEngine
+from backend.workflow_dna.prediction.dna import WorkflowDNA
+from backend.workflow_dna.prediction.service import PredictedFitnessResult, PredictionService
 
 DEFAULT_FITNESS_THRESHOLD = 50.0  # below this, a mutation is attempted
 
@@ -39,8 +38,8 @@ DEFAULT_FITNESS_THRESHOLD = 50.0  # below this, a mutation is attempted
 @dataclass
 class DNADecision:
     original: PredictedFitnessResult
-    mutated_dna: Optional[WorkflowDNA]
-    mutated: Optional[PredictedFitnessResult]
+    mutated_dna: WorkflowDNA | None
+    mutated: PredictedFitnessResult | None
     chosen_dna: WorkflowDNA
     threshold_met_without_mutation: bool
 
@@ -48,9 +47,9 @@ class DNADecision:
 class WorkflowDNAService:
     def __init__(
         self,
-        prediction_service: Optional[PredictionService] = None,
-        mutation_engine: Optional[MutationEngine] = None,
-        repository: Optional[WorkflowHistoryRepository] = None,
+        prediction_service: PredictionService | None = None,
+        mutation_engine: MutationEngine | None = None,
+        repository: WorkflowHistoryRepository | None = None,
         fitness_threshold: float = DEFAULT_FITNESS_THRESHOLD,
     ):
         self.prediction_service = prediction_service or PredictionService()
@@ -82,7 +81,11 @@ class WorkflowDNAService:
         mutated_dna.generation = self.repository.next_generation_number(dna.workflow_id)
         mutated_result = self.prediction_service.predict(mutated_dna)
 
-        chosen = mutated_dna if mutated_result.predicted_fitness > original_result.predicted_fitness else dna
+        chosen = (
+            mutated_dna
+            if mutated_result.predicted_fitness > original_result.predicted_fitness
+            else dna
+        )
 
         return DNADecision(
             original=original_result,
@@ -100,7 +103,7 @@ class WorkflowDNAService:
         resume_count: int,
         execution_time_seconds: float,
         cost: float,
-        predicted_fitness: Optional[float] = None,
+        predicted_fitness: float | None = None,
     ) -> WorkflowExecutionRecord:
         """
         Called after a workflow actually runs. Computes the real

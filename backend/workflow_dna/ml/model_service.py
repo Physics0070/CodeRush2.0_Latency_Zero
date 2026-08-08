@@ -14,7 +14,6 @@ train) is implementation detail behind this interface.
 """
 
 from pathlib import Path
-from typing import Optional
 
 import joblib
 import pandas as pd
@@ -56,7 +55,7 @@ class FitnessModelService:
     trained model itself.
     """
 
-    def __init__(self, model_path: Optional[str] = None):
+    def __init__(self, model_path: str | None = None):
         path = Path(model_path) if model_path else DEFAULT_MODEL_PATH
         if not path.exists():
             raise FileNotFoundError(

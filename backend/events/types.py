@@ -48,8 +48,10 @@ class EventType(StrEnum):
     # existing engine — never required for a run to proceed). Logged as
     # regular events, same as everything else, per this file's own rule:
     # "no state change happens anywhere without an event row."
-    DNA_PREDICTED = "DNA_PREDICTED"  # pre-execution fitness prediction (+ mutation suggestion, if any)
-    DNA_RECORDED = "DNA_RECORDED"    # post-execution actual fitness, written to Workflow DNA history
+    # Pre-execution fitness prediction (+ mutation suggestion, if any).
+    DNA_PREDICTED = "DNA_PREDICTED"
+    # Post-execution actual fitness, written to Workflow DNA history.
+    DNA_RECORDED = "DNA_RECORDED"
 
 
 class Event(BaseModel):

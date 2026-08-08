@@ -37,14 +37,14 @@ CREATE TABLE IF NOT EXISTS workflow_executions (
     agent_count         INTEGER NOT NULL,
     parallel_execution  INTEGER NOT NULL,      -- 0 or 1
     workflow_depth      INTEGER NOT NULL,
-    workflow_length     INTEGER NOT NULL,      -- added beyond the spec's suggested list; required ML input
+    workflow_length     INTEGER NOT NULL,      -- beyond the spec's list; required ML input
     execution_time      REAL,                  -- NULL until the workflow has actually executed
     retry_count         INTEGER,
     cost                REAL,
     quality             REAL,                  -- continuous 0-1 quality score
     success              INTEGER,               -- 0 or 1, genuine boolean completion outcome
-    fitness              REAL,                  -- actual (post-execution) fitness, computed by FitnessCalculator
-    predicted_fitness    REAL,                  -- what the model predicted BEFORE execution, for comparison
+    fitness              REAL,                  -- actual fitness, from FitnessCalculator
+    predicted_fitness    REAL,                  -- what the model predicted BEFORE execution
     timestamp             TEXT NOT NULL,
     FOREIGN KEY (parent_workflow) REFERENCES workflow_executions(workflow_id)
 );
@@ -60,7 +60,10 @@ DEFAULT_DB_PATH = Path(__file__).resolve().parent / "artifacts" / "workflow_dna_
 
 
 def init_db(db_path: str = str(DEFAULT_DB_PATH)) -> None:
-    """Creates the database file and table/indexes if they don't already exist. Safe to call repeatedly."""
+    """Creates the database file and table/indexes if they don't already exist.
+
+    Safe to call repeatedly.
+    """
     Path(db_path).parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(db_path)
     try:
