@@ -96,10 +96,14 @@ function layout(graph: Drawable): Record<string, { x: number; y: number }> {
   }
   graph.nodes.forEach((n) => resolve(n.id))
 
+  // Compensate nodes ride alongside the branch they compensate rather than
+  // taking their own slot in the row - counting them as siblings in the
+  // spacing math is what crowded a 4-branch graph (8 boxes fighting for one
+  // row) into an overlapping mess.
   const byLevel: Record<number, string[]> = {}
   graph.nodes.forEach((n) => {
-    const l = compensators.has(n.id) ? (level[n.compensates ?? ''] ?? 0) : level[n.id]
-    ;(byLevel[l] ??= []).push(n.id)
+    if (compensators.has(n.id)) return
+    ;(byLevel[level[n.id]] ??= []).push(n.id)
   })
 
   const pos: Record<string, { x: number; y: number }> = {}
@@ -107,8 +111,13 @@ function layout(graph: Drawable): Record<string, { x: number; y: number }> {
     const y = Number(l) * 130
     ids.forEach((id, i) => {
       const offset = (i - (ids.length - 1) / 2) * 210
-      pos[id] = { x: offset + (compensators.has(id) ? 120 : 0), y: compensators.has(id) ? y + 62 : y }
+      pos[id] = { x: offset, y }
     })
+  })
+  graph.nodes.forEach((n) => {
+    if (!compensators.has(n.id)) return
+    const target = pos[n.compensates ?? ''] ?? { x: 0, y: 0 }
+    pos[n.id] = { x: target.x + 120, y: target.y + 62 }
   })
   return pos
 }

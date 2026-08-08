@@ -171,12 +171,19 @@ export const api = {
   models: () => req<{ models: string[]; providers: string[] }>('/api/models'),
 
   clarify: (goal: string) =>
-    req<{ questions: { id: string; text: string }[]; permission: string }>(
-      '/api/clarify', { method: 'POST', body: JSON.stringify({ goal }) }),
+    req<{
+      questions: { id: string; text: string }[]
+      permission: string
+      plan: {
+        intent: string; complexity: string; rationale: string; source: string
+        specialists: { id: string; role: string }[]
+      }
+    }>('/api/clarify', { method: 'POST', body: JSON.stringify({ goal }) }),
 
-  compile: (goal: string, answers: Record<string, string>, models: string[]) =>
+  compile: (goal: string, answers: Record<string, string>, models: string[], intent?: string) =>
     req<{ run_id: string; graph: GraphSpec; council: CouncilSummary | null }>(
-      '/api/compile', { method: 'POST', body: JSON.stringify({ goal, answers, models }) }),
+      '/api/compile',
+      { method: 'POST', body: JSON.stringify({ goal, answers, models, intent }) }),
 
   start: (goal: string, graph: GraphSpec, approvals: string[]) =>
     req<{ run_id: string; config_hash: string }>(

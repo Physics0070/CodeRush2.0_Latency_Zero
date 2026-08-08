@@ -105,7 +105,19 @@ const COMPLEXITY_TONE: Record<string, 'default' | 'good' | 'warn'> = {
   simple: 'good', moderate: 'default', deep: 'warn',
 }
 
-/** Minimal markdown: fenced code, inline code, bold, headings, bullets. */
+function isTableRow(line: string): boolean {
+  return /^\s*\|.*\|\s*$/.test(line)
+}
+function tableCells(line: string): string[] {
+  return line.trim().replace(/^\|/, '').replace(/\|$/, '').split('|').map((c) => c.trim())
+}
+function isTableSep(line: string): boolean {
+  if (!isTableRow(line)) return false
+  const cells = tableCells(line)
+  return cells.length > 0 && cells.every((c) => /^:?-+:?$/.test(c))
+}
+
+/** Minimal markdown: fenced code, inline code, bold, links, headings, bullets, tables. */
 function renderMarkdown(src: string) {
   const out: React.ReactNode[] = []
   const blocks = src.split(/```/)
@@ -121,9 +133,31 @@ function renderMarkdown(src: string) {
       )
       return
     }
-    block.split('\n').forEach((line, li) => {
+    const lines = block.split('\n')
+    for (let li = 0; li < lines.length; li++) {
+      const line = lines[li]
       const key = `${bi}-${li}`
-      if (!line.trim()) { out.push(<div key={key} className="chat-gap" />); return }
+      if (!line.trim()) { out.push(<div key={key} className="chat-gap" />); continue }
+
+      // Header row, separator row, then 1+ data rows.
+      if (isTableRow(line) && isTableSep(lines[li + 1] ?? '')) {
+        const header = tableCells(line)
+        const rows: string[][] = []
+        let j = li + 2
+        while (j < lines.length && isTableRow(lines[j])) { rows.push(tableCells(lines[j])); j++ }
+        out.push(
+          <table key={key} className="chat-table">
+            <thead><tr>{header.map((h, hi) => <th key={hi}>{inline(h)}</th>)}</tr></thead>
+            <tbody>
+              {rows.map((r, ri) => (
+                <tr key={ri}>{r.map((c, ci) => <td key={ci}>{inline(c)}</td>)}</tr>
+              ))}
+            </tbody>
+          </table>,
+        )
+        li = j - 1
+        continue
+      }
 
       const heading = /^(#{1,4})\s+(.*)$/.exec(line)
       if (heading) {
@@ -132,12 +166,12 @@ function renderMarkdown(src: string) {
             {inline(heading[2])}
           </div>,
         )
-        return
+        continue
       }
       const bullet = /^\s*[-*+]\s+(.*)$/.exec(line)
       if (bullet) {
         out.push(<div key={key} className="chat-li">{inline(bullet[1])}</div>)
-        return
+        continue
       }
       const num = /^\s*(\d+)\.\s+(.*)$/.exec(line)
       if (num) {
@@ -146,25 +180,36 @@ function renderMarkdown(src: string) {
             <span className="chat-num">{num[1]}.</span> {inline(num[2])}
           </div>,
         )
-        return
+        continue
       }
       out.push(<div key={key} className="chat-p">{inline(line)}</div>)
-    })
+    }
   })
   return out
 }
 
 function inline(text: string): React.ReactNode[] {
-  // Split on `code` and **bold**, keeping the delimiters so they can be styled.
-  return text.split(/(`[^`]+`|\*\*[^*]+\*\*)/g).filter(Boolean).map((part, i) => {
-    if (part.startsWith('`') && part.endsWith('`') && part.length > 2) {
-      return <code key={i} className="chat-inline-code">{part.slice(1, -1)}</code>
-    }
-    if (part.startsWith('**') && part.endsWith('**') && part.length > 4) {
-      return <strong key={i}>{part.slice(2, -2)}</strong>
-    }
-    return <span key={i}>{part}</span>
-  })
+  // Split on `code`, **bold** and [text](url), keeping delimiters so they can be styled.
+  return text
+    .split(/(`[^`]+`|\*\*[^*]+\*\*|\[[^\]]+\]\([^)\s]+\))/g)
+    .filter(Boolean)
+    .map((part, i) => {
+      if (part.startsWith('`') && part.endsWith('`') && part.length > 2) {
+        return <code key={i} className="chat-inline-code">{part.slice(1, -1)}</code>
+      }
+      if (part.startsWith('**') && part.endsWith('**') && part.length > 4) {
+        return <strong key={i}>{part.slice(2, -2)}</strong>
+      }
+      const link = /^\[([^\]]+)\]\(([^)\s]+)\)$/.exec(part)
+      if (link) {
+        return (
+          <a key={i} href={link[2]} target="_blank" rel="noreferrer" className="chat-link">
+            {link[1]}
+          </a>
+        )
+      }
+      return <span key={i}>{part}</span>
+    })
 }
 
 function ms(n: number | null | undefined) {
@@ -214,13 +259,15 @@ function BenchDrawer({ turn, onClose }: { turn: Turn; onClose: () => void }) {
           <div className="kv"><span>Intent</span><b>{b.intent}</b></div>
           <div className="kv"><span>Complexity</span><b>{b.complexity}</b></div>
           <div className="kv"><span>Decided by</span><b>{b.planner_source}</b></div>
-          {turn.plan?.rationale && <p className="drawer-note">{turn.plan.rationale}</p>}
+          {turn.plan?.rationale && (
+            <div className="drawer-note">{renderMarkdown(turn.plan.rationale)}</div>
+          )}
         </section>
 
         <section className="drawer-sec">
           <h4>Model routing</h4>
           <div className="kv"><span>Answer model</span><b>{b.answer_model}</b></div>
-          <p className="drawer-note">{b.answer_model_reason}</p>
+          <div className="drawer-note">{renderMarkdown(b.answer_model_reason)}</div>
           {b.specialists.length > 0 && (
             <>
               {b.specialists.map((s) => (

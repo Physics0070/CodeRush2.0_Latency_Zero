@@ -4,6 +4,10 @@ import { Button } from './ui'
 export interface Clarification {
   questions: { id: string; text: string }[]
   permission: string
+  plan: {
+    intent: string; complexity: string; rationale: string; source: string
+    specialists: { id: string; role: string }[]
+  }
 }
 
 /**
@@ -18,8 +22,15 @@ export function ClarifyPanel({ clarification, onSubmit, busy }: {
   const [answers, setAnswers] = useState<Record<string, string>>({})
   const [granted, setGranted] = useState(false)
 
+  const { plan } = clarification
+
   return (
     <div className="p-4 space-y-4">
+      {plan?.rationale && (
+        <p className="text-[11px] leading-relaxed text-[var(--color-ink-faint)]">
+          {plan.rationale}
+        </p>
+      )}
       <div className="space-y-3">
         {clarification.questions.map((q, i) => (
           <div key={q.id}>
@@ -31,7 +42,7 @@ export function ClarifyPanel({ clarification, onSubmit, busy }: {
               id={q.id}
               value={answers[q.text] ?? ''}
               onChange={(e) => setAnswers({ ...answers, [q.text]: e.target.value })}
-              placeholder="optional"
+              placeholder="Answering helps tailor the plan"
               className="w-full min-h-11 px-3 rounded-lg bg-[var(--color-surface-2)] border border-[var(--color-line)] text-[13px] placeholder:text-[var(--color-ink-faint)] focus:border-[var(--color-accent)] outline-none"
             />
           </div>
