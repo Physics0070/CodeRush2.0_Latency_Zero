@@ -61,14 +61,13 @@ curl localhost:7860/health      # {"status":"ok","version":"0.1.0"}
 
 ---
 
-## Option B — split hosting (frontend on Vercel/Netlify)
+## Option B — split hosting (frontend on Netlify)
 
 Use this if you specifically want the UI on a static host.
 
-**Frontend** — `vercel.json` and `netlify.toml` are already in `frontend/`.
+**Frontend** — `netlify.toml` is already in `frontend/` (`base` is already set
+to `frontend`).
 
-- Vercel: import the repo, set **Root Directory** to `frontend`
-- Netlify: `base` is already set to `frontend` in `netlify.toml`
 - Set the build env var:
 
 ```
@@ -83,7 +82,7 @@ Railway or Fly.io.
 **Then allow the frontend's origin**, or every request fails CORS:
 
 ```
-CORS_ORIGINS=https://your-app.vercel.app,https://your-app.netlify.app
+CORS_ORIGINS=https://your-app.netlify.app
 ```
 
 The allow-list is explicit by design — `CORS_ORIGINS=*` raises at startup.
