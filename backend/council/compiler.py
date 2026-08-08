@@ -15,6 +15,7 @@ from backend.council.council import Verdict, deliberate
 from backend.engine.spec import AgentSpec, Edge, GraphSpec, Node
 from backend.events import EventStore, EventType
 from backend.providers.catalog import rank_models
+from backend.providers.websearch import needs_fresh_data, render_results, web_search
 
 log = logging.getLogger("aco.compiler")
 
@@ -70,10 +71,65 @@ REPORT_SCHEMA = {
     },
 }
 
+# Non-audit goals ("explain how RAG works", "build a spreadsheet for X") used to
+# be forced through the audit-shaped schemas above regardless of what was asked.
+# Same shape family (an array of structured items plus a summary), but headed
+# points/sections instead of severity-rated findings/prioritized.
+GENERAL_FINDINGS_SCHEMA = {
+    "type": "object",
+    "required": ["points"],
+    "properties": {
+        "points": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+                "type": "object",
+                "required": ["heading", "detail"],
+                "properties": {
+                    "heading": {"type": "string", "minLength": 3},
+                    "detail": {"type": "string", "minLength": 3},
+                },
+            },
+        }
+    },
+}
+
+GENERAL_REPORT_SCHEMA = {
+    "type": "object",
+    "required": ["summary", "sections"],
+    "properties": {
+        "summary": {"type": "string", "minLength": 10},
+        "sections": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+                "type": "object",
+                "required": ["heading", "content"],
+                "properties": {
+                    "heading": {"type": "string"},
+                    "content": {"type": "string"},
+                },
+            },
+        },
+    },
+}
+
+
+def schemas_for(intent: str) -> tuple[dict, dict]:
+    """Audit goals keep the severity-rated shape; everything else gets a
+    general points/sections shape instead of being forced into it."""
+    if intent == "audit":
+        return FINDINGS_SCHEMA, REPORT_SCHEMA
+    return GENERAL_FINDINGS_SCHEMA, GENERAL_REPORT_SCHEMA
+
+
 ALLOWED_TOOLS = {"read_file", "list_files"}
 
 
-def _branch_agent(bid: str, role: str, tools: list[str], model: str) -> AgentSpec:
+def _branch_agent(
+    bid: str, role: str, tools: list[str], model: str, schema: dict,
+    web_context: str = "",
+) -> AgentSpec:
     return AgentSpec(
         id=bid,
         role=role,
@@ -81,10 +137,11 @@ def _branch_agent(bid: str, role: str, tools: list[str], model: str) -> AgentSpe
             f"You are the {bid} specialist. {role}\n"
             "Report only what you can support from the material given to you. "
             "Output JSON only, matching the required schema. No prose, no markdown fence."
+            + web_context
         ),
         tools=[t for t in tools if t in ALLOWED_TOOLS],
         model=model,
-        output_schema=FINDINGS_SCHEMA,
+        output_schema=schema,
         budget_tokens=4000,
         timeout_s=180,
     )
@@ -96,6 +153,8 @@ def build_graph(
     verifier_model: str,
     *,
     allow_degenerate: bool = False,
+    intent: str = "audit",
+    web_context: str = "",
 ) -> GraphSpec:
     """Assemble the canonical shape: fanout -> N parallel analysts -> verify -> report.
 
@@ -143,36 +202,42 @@ def build_graph(
         Edge(from_node="approve", to_node="fanout"),
     ]
 
-    # This path has no Plan/intent (compile_graph takes a raw goal string) and
-    # its shape is inherently audit-flavored (security/quality/docs-style
-    # branches), so it ranks against the "audit" weight profile - see
-    # backend/providers/catalog.py. Pure function of (models, "audit"), so
-    # every depth in marginal_value.py's sweep still ranks identically.
-    ranked = rank_models(models, "audit")
+    findings_schema, report_schema = schemas_for(intent)
+
+    # Ranked against the real intent (default "audit" only when the caller
+    # supplies none - marginal_value.py's depth sweep relies on this default so
+    # every depth it compares still ranks identically). See
+    # backend/providers/catalog.py.
+    ranked = rank_models(models, intent)
     for i, b in enumerate(clean):
         model = ranked[i % len(ranked)][0]
         nodes.append(Node(id=b["id"], type="agent", agent=_branch_agent(
-            b["id"], b["role"], b["tools"], model), max_retries=1))
-        edges.append(Edge(from_node="fanout", to_node=b["id"], handoff_schema=FINDINGS_SCHEMA))
+            b["id"], b["role"], b["tools"], model, findings_schema, web_context),
+            max_retries=1))
+        edges.append(Edge(from_node="fanout", to_node=b["id"], handoff_schema=findings_schema))
 
     nodes.append(Node(id="join", type="join"))
     for b in clean:
-        edges.append(Edge(from_node=b["id"], to_node="join", handoff_schema=FINDINGS_SCHEMA))
+        edges.append(Edge(from_node=b["id"], to_node="join", handoff_schema=findings_schema))
 
+    verifier_contract = (
+        "You verify findings produced by other agents. Drop anything unsupported, "
+        "merge duplicates, and rank by severity. Output JSON only."
+        if intent == "audit" else
+        "You verify the points produced by other agents. Drop anything unsupported, "
+        "merge duplicates, and organize the rest into a coherent report. Output JSON only."
+    )
     nodes.append(Node(
         id="verify", type="verify",
         agent=AgentSpec(
             id="verifier",
-            role="Independent verification of the merged findings",
-            system_contract=(
-                "You verify findings produced by other agents. Drop anything unsupported, "
-                "merge duplicates, and rank by severity. Output JSON only."
-            ),
-            tools=[], model=verifier_model, output_schema=REPORT_SCHEMA,
+            role="Independent verification of the merged output",
+            system_contract=verifier_contract,
+            tools=[], model=verifier_model, output_schema=report_schema,
             budget_tokens=4000, timeout_s=180,
         ),
     ))
-    edges.append(Edge(from_node="join", to_node="verify", handoff_schema=REPORT_SCHEMA))
+    edges.append(Edge(from_node="join", to_node="verify", handoff_schema=report_schema))
 
     # Compensation for each analyst: a failed branch degrades the report rather
     # than killing the run.
@@ -190,16 +255,35 @@ async def compile_graph(
     run_id: str | None = None,
     seed: int = 42,
     chairman_policy: str = "strongest",
+    answers: dict[str, str] | None = None,
+    intent: str | None = None,
 ) -> tuple[GraphSpec, Verdict | None]:
-    task = (
-        f"Design a team of independent specialist agents for this goal:\n\n{goal}\n\n"
+    # Clarifying answers used to be logged for audit purposes and then
+    # discarded - compile_graph never saw them. Folded into the task text so
+    # they actually shape the council's proposal and the fallback planner call.
+    task = goal
+    if answers:
+        qa = "\n".join(f"Q: {q}\nA: {a}" for q, a in answers.items())
+        task = f"{goal}\n\nClarifying context:\n{qa}"
+
+    web_context = ""
+    if needs_fresh_data(task):
+        try:
+            results = await web_search(task)
+            if results:
+                web_context = "\n\n" + render_results(results)
+        except Exception as e:
+            log.warning("web search failed, continuing without it: %s", e)
+
+    council_task = (
+        f"Design a team of independent specialist agents for this goal:\n\n{task}\n\n"
         "Each specialist must be able to work in parallel without waiting for the others."
     )
     verdict = None
     branches: list[dict] = []
     try:
         verdict = await deliberate(
-            task, members, schema_hint=PLAN_SCHEMA_HINT,
+            council_task, members, schema_hint=PLAN_SCHEMA_HINT,
             policy=chairman_policy, store=store, run_id=run_id, seed=seed,
         )
         content = verdict.content
@@ -210,20 +294,29 @@ async def compile_graph(
     except Exception as e:
         log.warning("council compile failed: %s", e)
 
+    from backend.chat.planner import heuristic_plan, plan_for
+
+    plan = None
     if len(branches) < 2:
         # Ask a planner what THIS goal's dimensions are before falling back to
         # the generic security/quality/docs set. That set is right for a code
         # audit and wrong for everything else, and it used to be applied to
         # every goal regardless of what was asked.
-        from backend.chat.planner import plan_for
-
-        plan = await plan_for(goal, members[0] if members else None)
+        plan = await plan_for(task, members[0] if members else None)
         if len(plan.specialists) >= 2:
             log.info("council gave %d branches, planner supplied %d",
                      len(branches), len(plan.specialists))
             branches = plan.branch_dicts()
 
-    graph = build_graph(branches, members, verifier_model=members[-1])
+    # Prefer the intent the frontend already computed during /api/clarify (a
+    # real model-backed classification); fall back to the planner call just
+    # made above if there was one, else the free heuristic classifier.
+    resolved_intent = intent or (plan.intent if plan else None) or heuristic_plan(task).intent
+
+    graph = build_graph(
+        branches, members, verifier_model=members[-1],
+        intent=resolved_intent, web_context=web_context,
+    )
 
     if store and run_id:
         await store.append(
@@ -234,6 +327,8 @@ async def compile_graph(
                 "levels": graph.levels(),
                 "branches": [n.id for n in graph.nodes if n.type == "agent"],
                 "council_used": verdict is not None,
+                "intent": resolved_intent,
+                "web_search_used": bool(web_context),
             },
         )
     return graph, verdict

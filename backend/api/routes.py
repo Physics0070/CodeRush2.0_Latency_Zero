@@ -167,13 +167,17 @@ async def compile_endpoint(req: CompileRequest) -> dict:
     async with EventStore() as store:
         run_id = str(uuid.uuid4())
         await store.create_run(run_id, req.goal, "pending", req.seed, {}, "pending")
-        for i, (q, a) in enumerate(req.answers.items()):
-            await store.append(run_id, EventType.CLARIFY_ASKED, payload={"index": i, "question": q})
-            await store.append(run_id, EventType.CLARIFY_ANSWERED, payload={"question": q,
-                                                                            "answer": a})
+        if req.answers:
+            events = []
+            for i, (q, a) in enumerate(req.answers.items()):
+                events.append({"event_type": EventType.CLARIFY_ASKED,
+                                "payload": {"index": i, "question": q}})
+                events.append({"event_type": EventType.CLARIFY_ANSWERED,
+                                "payload": {"question": q, "answer": a}})
+            await store.append_many(run_id, events)
         graph, verdict = await compile_graph(
             req.goal, models_, store=store, run_id=run_id, seed=req.seed,
-            chairman_policy=req.chairman_policy,
+            chairman_policy=req.chairman_policy, answers=req.answers, intent=req.intent,
         )
         return {
             "run_id": run_id,

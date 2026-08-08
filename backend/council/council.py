@@ -8,6 +8,7 @@ the label, not the content. Authorship is stripped before ranking and only
 re-attached after the verdict, which is also what makes the ranking auditable.
 """
 
+import asyncio
 import json
 import logging
 import random
@@ -19,6 +20,13 @@ from backend.handoff import extract_json
 from backend.providers import complete
 
 log = logging.getLogger("aco.council")
+
+# Members are independent, so proposing/ranking used to be a sequential loop of
+# N model round trips - the same "await in a for-loop" latency bug the chat
+# surface was fixed for. Now every member runs concurrently, each bounded so
+# one slow member cannot stall the whole council (mirrors
+# backend/chat/session.py's SPECIALIST_TIMEOUT_S).
+COUNCIL_MEMBER_TIMEOUT_S = 45.0
 
 
 class Proposal(BaseModel):
@@ -58,13 +66,11 @@ RANK_SYS = (
 )
 
 
-async def propose(
-    task: str, members: list[str], *, schema_hint: str = "", store=None, run_id=None, seed=42
-) -> list[Proposal]:
-    """Each member answers the same task independently."""
-    out: list[Proposal] = []
-    for model in members:
-        try:
+async def _propose_one(
+    model: str, task: str, schema_hint: str, *, store, run_id, seed
+) -> Proposal | None:
+    try:
+        async with asyncio.timeout(COUNCIL_MEMBER_TIMEOUT_S):
             c = await complete(
                 model,
                 [
@@ -73,33 +79,86 @@ async def propose(
                 ],
                 seed=seed, temperature=0.0, max_tokens=1200,
             )
-        except Exception as e:
-            log.warning("council member %s failed to propose: %s", model, e)
-            continue
+    except TimeoutError:
+        log.warning(
+            "council member %s timed out after %ss proposing", model, COUNCIL_MEMBER_TIMEOUT_S
+        )
+        return None
+    except Exception as e:
+        log.warning("council member %s failed to propose: %s", model, e)
+        return None
 
-        value, err = extract_json(c.text)
-        p = Proposal(
-            author_model=model,
-            content=value if not err else c.text,
+    value, err = extract_json(c.text)
+    p = Proposal(
+        author_model=model,
+        content=value if not err else c.text,
+        tokens_in=c.tokens_in, tokens_out=c.tokens_out,
+        cost_usd=c.cost_usd, latency_ms=c.latency_ms,
+    )
+    if store and run_id:
+        await store.append(
+            run_id, EventType.COUNCIL_PROPOSAL, agent_id=model,
+            payload={"model": model, "parsed": not err, "content": _clip(p.content)},
             tokens_in=c.tokens_in, tokens_out=c.tokens_out,
             cost_usd=c.cost_usd, latency_ms=c.latency_ms,
         )
-        out.append(p)
-        if store and run_id:
-            await store.append(
-                run_id, EventType.COUNCIL_PROPOSAL, agent_id=model,
-                payload={"model": model, "parsed": not err,
-                         "content": _clip(p.content)},
-                tokens_in=c.tokens_in, tokens_out=c.tokens_out,
-                cost_usd=c.cost_usd, latency_ms=c.latency_ms,
+    return p
+
+
+async def propose(
+    task: str, members: list[str], *, schema_hint: str = "", store=None, run_id=None, seed=42
+) -> list[Proposal]:
+    """Each member answers the same task independently, concurrently."""
+    results = await asyncio.gather(*[
+        _propose_one(model, task, schema_hint, store=store, run_id=run_id, seed=seed)
+        for model in members
+    ])
+    return [p for p in results if p is not None]
+
+
+async def _rank_one(
+    model: str, ask: str, labels: list[str], *, store, run_id, seed
+) -> Ranking | None:
+    try:
+        async with asyncio.timeout(COUNCIL_MEMBER_TIMEOUT_S):
+            c = await complete(
+                model,
+                [{"role": "system", "content": RANK_SYS}, {"role": "user", "content": ask}],
+                seed=seed, temperature=0.0, max_tokens=600,
             )
-    return out
+    except TimeoutError:
+        log.warning(
+            "council member %s timed out after %ss ranking", model, COUNCIL_MEMBER_TIMEOUT_S
+        )
+        return None
+    except Exception as e:
+        log.warning("council member %s failed to rank: %s", model, e)
+        return None
+
+    value, err = extract_json(c.text)
+    order = [x for x in (value or {}).get("order", []) if x in labels] if not err else []
+    # A member that returns garbage abstains rather than corrupting the tally.
+    if not order:
+        log.warning("council member %s produced no usable ranking", model)
+        return None
+    r = Ranking(
+        ranker_model=model,
+        order=order,
+        reasons=(value or {}).get("reasons", {}) if isinstance(value, dict) else {},
+    )
+    if store and run_id:
+        await store.append(
+            run_id, EventType.COUNCIL_RANKING, agent_id=model,
+            payload={"ranker": model, "order": order, "anonymous": True},
+            tokens_in=c.tokens_in, tokens_out=c.tokens_out, cost_usd=c.cost_usd,
+        )
+    return r
 
 
 async def peer_rank(
     proposals: list[Proposal], members: list[str], *, store=None, run_id=None, seed=42
 ) -> list[Ranking]:
-    """Every member ranks all proposals, with authorship stripped."""
+    """Every member ranks all proposals, with authorship stripped, concurrently."""
     if len(proposals) < 2:
         return []
 
@@ -122,35 +181,11 @@ async def peer_rank(
         f'"reasons":{{"A":"..."}}}} using only these labels: {labels}.'
     )
 
-    rankings: list[Ranking] = []
-    for model in members:
-        try:
-            c = await complete(
-                model,
-                [{"role": "system", "content": RANK_SYS}, {"role": "user", "content": ask}],
-                seed=seed, temperature=0.0, max_tokens=600,
-            )
-            value, err = extract_json(c.text)
-            order = [x for x in (value or {}).get("order", []) if x in labels] if not err else []
-            # A member that returns garbage abstains rather than corrupting the tally.
-            if not order:
-                log.warning("council member %s produced no usable ranking", model)
-                continue
-            r = Ranking(
-                ranker_model=model,
-                order=order,
-                reasons=(value or {}).get("reasons", {}) if isinstance(value, dict) else {},
-            )
-            rankings.append(r)
-            if store and run_id:
-                await store.append(
-                    run_id, EventType.COUNCIL_RANKING, agent_id=model,
-                    payload={"ranker": model, "order": order, "anonymous": True},
-                    tokens_in=c.tokens_in, tokens_out=c.tokens_out, cost_usd=c.cost_usd,
-                )
-        except Exception as e:
-            log.warning("council member %s failed to rank: %s", model, e)
-    return rankings
+    results = await asyncio.gather(*[
+        _rank_one(model, ask, labels, store=store, run_id=run_id, seed=seed)
+        for model in members
+    ])
+    return [r for r in results if r is not None]
 
 
 def f_(x: str) -> str:
@@ -216,18 +251,25 @@ async def chairman_merge(
         for p in proposals
     )
     try:
-        c = await complete(
-            chairman,
-            [
-                {"role": "system", "content":
-                 "You are the council chairman. Merge the strongest elements of the "
-                 "peer-ranked proposals into one final answer. Output JSON only."},
-                {"role": "user", "content": f"Task:\n{task}\n\n{ranked_text}"},
-            ],
-            seed=seed, temperature=0.0, max_tokens=1500,
-        )
+        async with asyncio.timeout(COUNCIL_MEMBER_TIMEOUT_S):
+            c = await complete(
+                chairman,
+                [
+                    {"role": "system", "content":
+                     "You are the council chairman. Merge the strongest elements of the "
+                     "peer-ranked proposals into one final answer. Output JSON only."},
+                    {"role": "user", "content": f"Task:\n{task}\n\n{ranked_text}"},
+                ],
+                seed=seed, temperature=0.0, max_tokens=1500,
+            )
         merged, err = extract_json(c.text)
         content = merged if not err else winner.content
+    except TimeoutError:
+        log.warning(
+            "chairman %s timed out after %ss, falling back to top-ranked proposal",
+            chairman, COUNCIL_MEMBER_TIMEOUT_S,
+        )
+        content = winner.content
     except Exception as e:
         log.warning("chairman %s failed, falling back to top-ranked proposal: %s", chairman, e)
         content = winner.content

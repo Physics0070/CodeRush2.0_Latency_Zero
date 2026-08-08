@@ -31,6 +31,11 @@ class GoalRequest(BaseModel):
 
 class CompileRequest(GoalRequest):
     answers: dict[str, str] = Field(default_factory=dict)
+    # Set by the frontend from /api/clarify's already-computed Plan.intent, so
+    # the graph is ranked/shaped for what was actually asked instead of always
+    # "audit". None (an older client, or a direct API call) falls back to a
+    # heuristic re-derived inside compile_graph - see backend/council/compiler.py.
+    intent: str | None = Field(default=None, max_length=32)
 
     @field_validator("answers")
     @classmethod

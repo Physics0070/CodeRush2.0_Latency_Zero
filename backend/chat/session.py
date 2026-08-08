@@ -25,6 +25,7 @@ from backend.chat.planner import Plan, pick_planner_model, plan_for
 from backend.engine.spec import AgentSpec, Edge, GraphSpec, Node
 from backend.events import EventStore, EventType
 from backend.providers.catalog import rank_models
+from backend.providers.websearch import needs_fresh_data, render_results, web_search
 
 log = logging.getLogger("aco.chat")
 
@@ -318,12 +319,28 @@ async def run_turn(
 
     # ---------- answer ----------
     yield {"event": "status", "data": {"stage": "answering"}}
+    # Cheap, free, no-network gate (needs_fresh_data) before paying for a real
+    # search round trip - most questions are timeless. Folded into the question
+    # text itself rather than given to the model as a live tool call: that
+    # keeps the SSE token stream (ProviderAdapter.stream has no tools param,
+    # and touching it risks the 34s->4s latency fix from last session) and the
+    # replay path completely unchanged - whatever text the answer was built
+    # from is exactly what gets stored and replayed.
+    answer_question = question
+    if needs_fresh_data(question):
+        try:
+            results = await web_search(question)
+            web_context = render_results(results)
+            if web_context:
+                answer_question = f"{question}\n\n{web_context}"
+        except Exception as e:
+            log.warning("web search failed, continuing without it: %s", e)
     chunks: list[str] = []
     gen = (
-        stream_synthesis(question, contributions, answer_model, history=history,
+        stream_synthesis(answer_question, contributions, answer_model, history=history,
                           fallback_model=answer_fallback)
         if plan.needs_council
-        else stream_direct(question, answer_model, history=history,
+        else stream_direct(answer_question, answer_model, history=history,
                             fallback_model=answer_fallback)
     )
     try:
